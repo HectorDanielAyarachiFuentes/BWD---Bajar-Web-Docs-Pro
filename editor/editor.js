@@ -530,6 +530,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     }));
   }
 
+  // Detección automática del color de fondo y tema de la página clonada
+  function detectPageTheme(doc) {
+    let bgColor = '#ffffff';
+    let isDark = false;
+    let bgR = 255, bgG = 255, bgB = 255;
+    try {
+      const body = doc.body;
+      const docEl = doc.documentElement;
+      const bodyStyle = window.getComputedStyle(body);
+      const docStyle = window.getComputedStyle(docEl);
+
+      let rawBg = bodyStyle.backgroundColor;
+      if (!rawBg || rawBg === 'transparent' || rawBg === 'rgba(0, 0, 0, 0)') {
+        rawBg = docStyle.backgroundColor;
+      }
+
+      if (rawBg && rawBg !== 'transparent' && rawBg !== 'rgba(0, 0, 0, 0)') {
+        bgColor = rawBg;
+        const rgbMatch = rawBg.match(/\d+/g);
+        if (rgbMatch && rgbMatch.length >= 3) {
+          bgR = parseInt(rgbMatch[0], 10);
+          bgG = parseInt(rgbMatch[1], 10);
+          bgB = parseInt(rgbMatch[2], 10);
+          const lum = (0.299 * bgR + 0.587 * bgG + 0.114 * bgB);
+          isDark = lum < 128;
+        }
+      }
+    } catch (_) {}
+
+    return { bgColor, isDark, bgR, bgG, bgB };
+  }
+
   async function captureEditorCanvas(onProgress = () => {}) {
     const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
 
@@ -544,29 +576,104 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 2. Breve espera para que el DOM del iframe actualice la vista con las nuevas data URLs
     await new Promise(r => setTimeout(r, 300));
 
-    const targetEl = frameDoc.documentElement || frameDoc.body;
-    const docHeight = Math.max(targetEl.scrollHeight, targetEl.offsetHeight, 1000);
+    // 3. Reseteo absoluto de scroll: Evita que desplazamientos del usuario recorten la parte superior
+    const win = cloneFrame.contentWindow;
+    const prevScrollX = win ? (win.scrollX || win.pageXOffset || 0) : 0;
+    const prevScrollY = win ? (win.scrollY || win.pageYOffset || 0) : 0;
 
-    // Escala inteligente adaptativa:
-    // Evita superar el límite de GPU de Firefox (32,767px) y reduce el peso drásticamente
+    if (win) win.scrollTo(0, 0);
+    if (frameDoc.documentElement) {
+      frameDoc.documentElement.scrollTop = 0;
+      frameDoc.documentElement.scrollLeft = 0;
+    }
+    if (frameDoc.body) {
+      frameDoc.body.scrollTop = 0;
+      frameDoc.body.scrollLeft = 0;
+    }
+    frameDoc.querySelectorAll('*').forEach(el => {
+      if (el.scrollTop) el.scrollTop = 0;
+      if (el.scrollLeft) el.scrollLeft = 0;
+    });
+
+    // 4. Medir dimensiones reales completas del documento sin recortes
+    const body = frameDoc.body;
+    const docEl = frameDoc.documentElement;
+    const fullWidth = Math.max(
+      body ? body.scrollWidth : 0,
+      body ? body.offsetWidth : 0,
+      docEl ? docEl.clientWidth : 0,
+      docEl ? docEl.scrollWidth : 0,
+      docEl ? docEl.offsetWidth : 0,
+      win ? win.innerWidth : 1200
+    );
+    const fullHeight = Math.max(
+      body ? body.scrollHeight : 0,
+      body ? body.offsetHeight : 0,
+      docEl ? docEl.clientHeight : 0,
+      docEl ? docEl.scrollHeight : 0,
+      docEl ? docEl.offsetHeight : 0,
+      win ? win.innerHeight : 800
+    );
+
+    // Escala adaptativa para alta definición sin exceder el límite de GPU
     let scale = 2;
-    if (docHeight > 10000) {
+    if (fullHeight > 10000) {
       scale = 1.35;
-    } else if (docHeight > 5000) {
+    } else if (fullHeight > 5000) {
       scale = 1.5;
     }
-    if (docHeight * scale > 28000) {
-      scale = Math.max(1, 28000 / docHeight);
+    if (fullHeight * scale > 28000) {
+      scale = Math.max(1, 28000 / fullHeight);
     }
 
-    onProgress("Compilando vista de alta definición...", 40);
+    const { bgColor } = detectPageTheme(frameDoc);
 
-    return await window.html2canvas(targetEl, {
-      useCORS: true,
-      scale: scale,
-      backgroundColor: '#ffffff',
-      logging: false
-    });
+    onProgress("Compilando vista de alta definición sin recortes...", 40);
+
+    let canvas;
+    try {
+      canvas = await window.html2canvas(docEl || body, {
+        useCORS: true,
+        scale: scale,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        width: fullWidth,
+        height: fullHeight,
+        windowWidth: fullWidth,
+        windowHeight: fullHeight,
+        backgroundColor: bgColor,
+        logging: false,
+        onclone: (clonedDoc) => {
+          if (clonedDoc.defaultView) {
+            clonedDoc.defaultView.scrollTo(0, 0);
+          }
+          if (clonedDoc.documentElement) {
+            clonedDoc.documentElement.scrollTop = 0;
+            clonedDoc.documentElement.style.overflow = 'visible';
+            clonedDoc.documentElement.style.height = 'auto';
+          }
+          if (clonedDoc.body) {
+            clonedDoc.body.scrollTop = 0;
+            clonedDoc.body.style.overflow = 'visible';
+            clonedDoc.body.style.height = 'auto';
+          }
+          clonedDoc.querySelectorAll('*').forEach(el => {
+            if (el.scrollTop) el.scrollTop = 0;
+            if (el.scrollLeft) el.scrollLeft = 0;
+          });
+          clonedDoc.querySelectorAll('input, textarea').forEach(inp => {
+            if (inp.value) inp.setAttribute('value', inp.value);
+          });
+        }
+      });
+    } finally {
+      // Restaurar el scroll del usuario para que su navegación no sufra saltos
+      if (win) win.scrollTo(prevScrollX, prevScrollY);
+    }
+
+    return canvas;
   }
 
   // Motor de rebanado unificado A4 con compresión JPEG 0.85 (Reduce 560MB a 5-8MB)
@@ -583,8 +690,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       pageCanvas.width = canvasWidth;
       pageCanvas.height = canvasHeight;
       const pctx = pageCanvas.getContext('2d');
-      pctx.fillStyle = '#ffffff';
-      pctx.fillRect(0, 0, canvasWidth, canvasHeight);
       pctx.drawImage(canvas, 0, 0);
 
       return [{
@@ -607,8 +712,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       pageCanvas.height = currentSliceH;
 
       const pctx = pageCanvas.getContext('2d');
-      pctx.fillStyle = '#ffffff';
-      pctx.fillRect(0, 0, canvasWidth, currentSliceH);
       pctx.drawImage(canvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
 
       slices.push({
@@ -636,6 +739,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       showExportModal("Compilando archivo PDF...", "Aplicando compresión optimizada...", 65);
 
+      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
+      const { isDark, bgR, bgG, bgB } = detectPageTheme(frameDoc);
+
       const { jsPDF } = window.jspdf;
       const isLandscape = canvas.width >= canvas.height && (canvas.height <= canvas.width * 0.8);
       const orientation = isLandscape ? 'landscape' : 'portrait';
@@ -660,6 +766,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       slices.forEach((slice, idx) => {
         if (idx > 0) {
           pdf.addPage('a4', orientation);
+        }
+
+        // Si la página original es tema oscuro, pintar el fondo para evitar bordes blancos desentonados
+        if (isDark) {
+          pdf.setFillColor(bgR, bgG, bgB);
+          pdf.rect(0, 0, pageW, pageH, 'F');
         }
 
         if (slice.isSingleScreen) {
@@ -691,27 +803,55 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // B. Exportar a Word (.doc fiel exactamente igual al PDF / web)
+  // B. Exportar a Word (.doc fiel con arquitectura MHTML compatible con Microsoft Office)
   btnEditorDocx.addEventListener('click', async () => {
     try {
       showExportModal("Generando documento Word (.doc)...", "Iniciando captura sin distorsión...", 15);
 
       const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando documento Word...", msg, pct));
 
-      showExportModal("Compilando documento Word...", "Generando páginas idénticas al PDF...", 65);
+      showExportModal("Compilando documento Word...", "Empaquetando páginas en formato compatible MHTML...", 65);
 
       const title = (cloneData && cloneData.title) ? cloneData.title : 'Documento Web Editado';
+      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
+      const { isDark, bgColor } = detectPageTheme(frameDoc);
+
+      const isLandscape = canvas.width >= canvas.height && (canvas.height <= canvas.width * 0.8);
 
       const slices = sliceCanvasForA4(canvas, (current, total) => {
         const pct = Math.min(95, 65 + Math.round((current / total) * 25));
         showExportModal("Compilando documento Word...", `Generando página ${current} de ${total}...`, pct);
       });
 
-      const pageImagesHtml = slices.map((slice, idx) => `
-        <div class="bwd-word-page" style="${idx > 0 ? 'page-break-before: always; mso-break-type: page-break;' : ''} margin: 0; padding: 0; text-align: center;">
-          <img src="${slice.dataUrl}" alt="Página ${idx + 1}" style="width: 7.6in; max-width: 100%; height: auto; display: block; margin: 0 auto;" />
-        </div>
-      `);
+      // MHTML (MIME multipart/related) Packaging:
+      // Formato nativo estándar de Microsoft Word para documentos con imágenes incrustadas.
+      // Word no renderiza <img src="data:image/...">; requiere imágenes empaquetadas como partes MIME.
+      const boundary = '----=_NextPart_BWD_OFFICE_DOC_' + Date.now();
+      const mimeImageParts = [];
+      const pageImagesHtml = [];
+
+      slices.forEach((slice, idx) => {
+        const imgFilename = `page_${idx + 1}.jpg`;
+        const rawBase64 = slice.dataUrl.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+        const chunkedBase64 = (rawBase64.match(/.{1,76}/g) || [rawBase64]).join('\r\n');
+
+        const imgWidth = isLandscape ? '10.5in' : '7.3in';
+        pageImagesHtml.push(`
+          <div class="bwd-word-page" style="${idx > 0 ? 'page-break-before: always; mso-break-type: page-break;' : ''} margin: 0; padding: 0; text-align: center;">
+            <img src="${imgFilename}" alt="Página ${idx + 1}" style="width: ${imgWidth}; max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+          </div>
+        `);
+
+        mimeImageParts.push([
+          `--${boundary}`,
+          'Content-Type: image/jpeg',
+          'Content-Transfer-Encoding: base64',
+          `Content-Location: ${imgFilename}`,
+          '',
+          chunkedBase64,
+          ''
+        ].join('\r\n'));
+      });
 
       const wordHtmlDoc = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -729,9 +869,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           <![endif]-->
           <style>
             @page WordSection1 {
-              size: 210mm 297mm;
+              size: ${isLandscape ? '297mm 210mm' : '210mm 297mm'};
               margin: 8mm 8mm 8mm 8mm;
-              mso-page-orientation: portrait;
+              mso-page-orientation: ${isLandscape ? 'landscape' : 'portrait'};
               mso-header-margin: 0;
               mso-footer-margin: 0;
             }
@@ -741,7 +881,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             body {
               margin: 0;
               padding: 0;
-              background-color: #ffffff;
+              background-color: ${isDark ? '#050508' : '#ffffff'};
+            }
+            .bwd-word-page {
+              margin: 0;
+              padding: 0;
+              text-align: center;
             }
           </style>
         </head>
@@ -753,12 +898,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         </html>
       `;
 
-      const blob = new Blob(['\ufeff' + wordHtmlDoc], { type: 'application/msword;charset=utf-8' });
+      const mhtmlPayload = [
+        'MIME-Version: 1.0',
+        `Content-Type: multipart/related; boundary="${boundary}"; type="text/html"`,
+        '',
+        `--${boundary}`,
+        'Content-Type: text/html; charset="utf-8"',
+        'Content-Location: http://document/page.html',
+        '',
+        wordHtmlDoc,
+        '',
+        mimeImageParts.join('\r\n'),
+        `--${boundary}--`
+      ].join('\r\n');
+
+      const blob = new Blob([mhtmlPayload], { type: 'application/msword;charset=utf-8' });
       const filename = sanitizeName(title, 'doc');
 
-      const downloadUrl = URL.createObjectURL(blob);
-      triggerDownloadUrl(downloadUrl, filename);
-      setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+      triggerDownloadBlob(blob, filename);
 
       hideExportModal();
       showToast(`¡Documento Word (.doc) guardado fielmente! (${filename})`);
@@ -779,10 +936,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando imagen PNG HD...", msg, pct));
 
-      const dataUrl = canvas.toDataURL('image/png');
       const filename = sanitizeName(cloneData ? cloneData.title : 'captura_editada', 'png');
 
-      triggerDownloadUrl(dataUrl, filename);
+      await new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            triggerDownloadBlob(blob, filename);
+          } else {
+            const dataUrl = canvas.toDataURL('image/png');
+            triggerDownloadUrl(dataUrl, filename);
+          }
+          resolve();
+        }, 'image/png');
+      });
+
       hideExportModal();
       showToast(`¡Captura PNG guardada! (${filename})`);
       setTool(activeTool);
