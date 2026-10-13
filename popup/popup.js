@@ -492,14 +492,18 @@ btnDocx.addEventListener('click', async () => {
       };
     });
 
-    setProgress(75, "Empaquetando documento compatible con Word...", 'busy');
+    setProgress(75, "Empaquetando documento fiel para Word (formato MHTML)...", 'busy');
 
     const today = new Date().toLocaleDateString('es-ES', {
       year: 'numeric', month: 'long', day: 'numeric'
     });
 
-    // Plantilla Word optimizada con formato de sección única y medidas fijas en pulgadas
-    const wordTemplate = `
+    // 3. Extraer y formatear el base64 para el estándar MIME (RFC 2045: líneas de 76 caracteres)
+    const rawBase64 = visualSnapshotUrl.replace(/^data:image\/[a-z]+;base64,/, '');
+    const chunkedBase64 = (rawBase64.match(/.{1,76}/g) || [rawBase64]).join('\r\n');
+
+    // 4. Plantilla HTML interna que referencia el identificador MIME 'snapshot_cover.png'
+    const wordHtmlContent = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
         <meta charset='utf-8'>
@@ -516,9 +520,9 @@ btnDocx.addEventListener('click', async () => {
         <style>
           @page Section1 {
             size: 8.27in 11.69in; /* A4 */
-            margin: 0.8in 0.8in 0.8in 0.8in;
-            mso-header-margin: 0.5in;
-            mso-footer-margin: 0.5in;
+            margin: 0.6in 0.6in 0.6in 0.6in;
+            mso-header-margin: 0.4in;
+            mso-footer-margin: 0.4in;
             mso-paper-source: 0;
           }
           div.Section1 {
@@ -544,7 +548,7 @@ btnDocx.addEventListener('click', async () => {
             border: 1pt solid #cbd5e1;
             border-left: 3.5pt solid #2563eb;
             padding: 8pt 12pt;
-            margin-bottom: 14pt;
+            margin-bottom: 12pt;
           }
           .bwd-meta {
             font-size: 9pt;
@@ -553,9 +557,9 @@ btnDocx.addEventListener('click', async () => {
           }
           .visual-box {
             border: 1pt solid #cbd5e1;
-            padding: 6pt;
+            padding: 4pt;
             background: #ffffff;
-            margin-bottom: 16pt;
+            margin-bottom: 14pt;
             text-align: center;
           }
           .visual-tag {
@@ -564,14 +568,13 @@ btnDocx.addEventListener('click', async () => {
             color: #2563eb;
             text-transform: uppercase;
             letter-spacing: 0.5pt;
-            margin-bottom: 6pt;
+            margin-bottom: 4pt;
             text-align: left;
           }
-          /* Dimensión fija en pulgadas calculada exactamente para el ancho A4 útil */
+          /* Dimensión exacta calculada para el ancho A4 útil */
           img.visual-img {
-            width: 6.4in;
-            max-width: 6.4in;
-            max-height: 8.0in;
+            width: 6.8in;
+            max-width: 6.8in;
             height: auto;
             border: 1pt solid #e2e8f0;
             display: block;
@@ -579,7 +582,7 @@ btnDocx.addEventListener('click', async () => {
           }
           .page-break {
             page-break-before: always;
-            margin-top: 16pt;
+            margin-top: 14pt;
           }
         </style>
       </head>
@@ -591,16 +594,16 @@ btnDocx.addEventListener('click', async () => {
             <div class="bwd-meta"><strong>Fecha de exportación:</strong> ${today} — Generado con BWD Pro</div>
           </div>
 
-          <!-- 1. VISTA VISUAL FIEL (ACOTADA A PÁGINA A4) -->
+          <!-- 1. VISTA VISUAL FIEL (VINCULADA AL RECURSO EMBEBIDO EN EL ARCHIVO) -->
           <div class="visual-box">
             <div class="visual-tag">Maquetación Visual y Dimensiones Originales</div>
-            <img class="visual-img" src="${visualSnapshotUrl}" alt="${extracted.title}" />
+            <img class="visual-img" src="snapshot_cover.png" alt="${extracted.title}" />
           </div>
 
           ${extracted.contentHtml ? `
-          <!-- 2. CONTENIDO ESTRUCTURADO Y EDITABLE (SÓLO SI EXISTE CONTENIDO REAL) -->
+          <!-- 2. CONTENIDO ESTRUCTURADO Y FORMULARIOS EDITABLES -->
           <div class="page-break">
-            <h2 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt; margin-bottom: 12pt; font-size: 15pt;">
+            <h2 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt; margin-bottom: 10pt; font-size: 15pt;">
               Contenido Estructurado y Formularios Editables
             </h2>
             ${extracted.contentHtml}
@@ -611,12 +614,34 @@ btnDocx.addEventListener('click', async () => {
       </html>
     `;
 
-    const blob = new Blob(['\ufeff', wordTemplate], { type: 'application/msword;charset=utf-8' });
+    // 5. Ensamblar documento MIME Multipart/Related (MHTML nativo que Word abre con imágenes intactas)
+    const boundary = '----=_NextPart_01D9_BWD_OFFICE';
+    const mhtmlPayload = [
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/related; boundary="${boundary}"; type="text/html"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset="utf-8"',
+      'Content-Location: http://document/page.html',
+      '',
+      wordHtmlContent,
+      '',
+      `--${boundary}`,
+      'Content-Type: image/png',
+      'Content-Transfer-Encoding: base64',
+      'Content-Location: snapshot_cover.png',
+      '',
+      chunkedBase64,
+      '',
+      `--${boundary}--`
+    ].join('\r\n');
+
+    const blob = new Blob([mhtmlPayload], { type: 'application/msword;charset=utf-8' });
     const filename = sanitizeFilename(extracted.title, 'doc');
 
     await triggerDownload(blob, filename);
 
-    setProgress(100, `¡Documento Word guardado! (${filename})`, 'success');
+    setProgress(100, `¡Documento Word guardado con diseño fiel! (${filename})`, 'success');
     setBusy(false);
 
   } catch (err) {
