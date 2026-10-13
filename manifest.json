@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "BWD - Bajar-Web-Docs Pro",
+  "version": "0.2.0",
+  "description": "Exporta páginas web completas a PDF fiel sin cortes ni fallos de diseño, Word (.docx) o Captura Retina 2x.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "libs/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "bwd-bajar-web-docs@local.addon",
+      "strict_min_version": "109.0"
+    }
+  }
+}
