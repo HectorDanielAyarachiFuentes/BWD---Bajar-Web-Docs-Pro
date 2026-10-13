@@ -398,60 +398,97 @@ btnDocx.addEventListener('click', async () => {
 
     const tab = await getActiveTab();
 
-    // 1. Capturar la vista de pantalla fiel para incrustar el diseño original exacto en Word
+    // 1. Capturar la vista de pantalla fiel para la portada de Word
     const visualSnapshotUrl = await captureTabImage(tab, 'png');
 
-    setProgress(45, "Extrayendo y adaptando estructura editable...", 'busy');
+    setProgress(45, "Extrayendo contenido estructurado y legible...", 'busy');
 
-    // 2. Extraer el contenido preservando formularios, botones y tablas (sin borrarlos)
+    // 2. Extraer ÚNICAMENTE bloques semánticos visibles reales (evita los 300 divs vacíos que causaban 50 páginas)
     const extracted = await executeInPage(() => {
-      const title = document.title || 'Documento Web';
+      const title = document.title ? document.title.trim() : 'Documento Web';
       const url = window.location.href;
 
-      const bodyClone = document.body.cloneNode(true);
+      function isVisible(el) {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      }
 
-      // Eliminar scripts, iframes, noscript y tracking
-      ['script', 'iframe', 'noscript', 'link', 'meta'].forEach(tag => {
-        bodyClone.querySelectorAll(tag).forEach(el => el.remove());
-      });
+      const container = document.querySelector('article') ||
+                        document.querySelector('[role="article"]') ||
+                        document.querySelector('main') ||
+                        document.querySelector('[role="main"]') ||
+                        document.body;
 
-      // Transformar inputs y textareas en campos editables visuales para Word
-      bodyClone.querySelectorAll('input, textarea').forEach(input => {
-        const placeholder = input.placeholder || input.value || input.getAttribute('aria-label') || 'Campo de entrada';
-        const span = document.createElement('div');
-        span.style.cssText = 'border: 1px solid #cbd5e1; background-color: #f8fafc; padding: 6px 12px; border-radius: 4px; margin: 4px 0; color: #475569; font-size: 10pt; max-width: 340px;';
-        span.textContent = `[ ${placeholder} ]`;
-        input.replaceWith(span);
-      });
+      const blocks = [];
+      const seenTexts = new Set();
 
-      // Transformar botones en bloques estilizados legibles para Word
-      bodyClone.querySelectorAll('button, [role="button"]').forEach(btn => {
-        const text = btn.textContent ? btn.textContent.trim() : 'Botón';
-        if (text) {
-          const div = document.createElement('div');
-          div.style.cssText = 'display: inline-block; background-color: #1877f2; color: #ffffff; padding: 6px 16px; font-weight: bold; border-radius: 4px; margin: 4px 6px 4px 0; font-size: 10pt; text-align: center;';
-          div.textContent = text;
-          btn.replaceWith(div);
+      // Recorrer sólo elementos informativos principales
+      const elements = container.querySelectorAll('h1, h2, h3, h4, p, table, ul, ol, form, blockquote');
+
+      elements.forEach(el => {
+        // Ignorar encabezados de navegación fija, footers repetitivos y anuncios
+        if (el.closest('nav, footer, aside, script, noscript, header, .cookie-banner, #cookie-banner, [role="navigation"]')) {
+          return;
         }
-      });
 
-      // Limpiar SVGs grandes y conservar etiquetas accesibles
-      bodyClone.querySelectorAll('svg').forEach(svg => {
-        const label = svg.getAttribute('aria-label') || svg.getAttribute('title');
-        if (label) {
-          const span = document.createElement('span');
-          span.style.cssText = 'font-weight: bold; color: #1877f2;';
-          span.textContent = ` [${label}] `;
-          svg.replaceWith(span);
-        } else {
-          svg.remove();
+        if (!isVisible(el)) return;
+
+        const tag = el.tagName.toLowerCase();
+        const text = el.innerText ? el.innerText.trim() : '';
+
+        if (!text && tag !== 'table' && tag !== 'form') return;
+
+        // Evitar duplicaciones provocadas por contenedores anidados
+        if (text && seenTexts.has(text)) return;
+        if (text) seenTexts.add(text);
+
+        if (tag.startsWith('h')) {
+          blocks.push(`<${tag} style="color: #0f172a; margin-top: 14pt; margin-bottom: 4pt; font-size: ${tag === 'h1' ? '18pt' : tag === 'h2' ? '14pt' : '12pt'}; font-weight: bold; mso-line-height-rule: exactly; line-height: 1.2;">${text}</${tag}>`);
+        } else if (tag === 'p') {
+          if (text.length > 3) {
+            blocks.push(`<p style="margin: 0 0 8pt 0; line-height: 1.45; color: #334155;">${text}</p>`);
+          }
+        } else if (tag === 'table') {
+          const cloneTable = el.cloneNode(true);
+          cloneTable.querySelectorAll('*').forEach(t => t.removeAttribute('class'));
+          cloneTable.setAttribute('border', '1');
+          cloneTable.setAttribute('cellpadding', '6');
+          cloneTable.setAttribute('cellspacing', '0');
+          cloneTable.style.cssText = 'border-collapse: collapse; width: 100%; margin: 12pt 0; border: 1pt solid #cbd5e1; font-size: 10pt;';
+          blocks.push(cloneTable.outerHTML);
+        } else if (tag === 'ul' || tag === 'ol') {
+          const items = Array.from(el.querySelectorAll('li'))
+            .map(li => li.innerText ? li.innerText.trim() : '')
+            .filter(t => t.length > 0 && !seenTexts.has(t));
+          if (items.length > 0) {
+            items.forEach(t => seenTexts.add(t));
+            const lis = items.map(t => `<li style="margin-bottom: 3pt; color: #334155;">${t}</li>`).join('');
+            blocks.push(`<${tag} style="margin: 6pt 0 10pt 18pt;">${lis}</${tag}>`);
+          }
+        } else if (tag === 'form') {
+          const inputs = Array.from(el.querySelectorAll('input, select, textarea, button'));
+          if (inputs.length > 0) {
+            let formSummary = '<table style="width: 100%; border-collapse: collapse; background-color: #f8fafc; border: 1pt solid #cbd5e1; margin: 10pt 0;" cellpadding="6">';
+            formSummary += '<tr><td style="background-color: #f1f5f9; font-weight: bold; color: #1e40af; border-bottom: 1pt solid #cbd5e1;" colspan="2">Estructura del Formulario</td></tr>';
+            inputs.forEach(inp => {
+              const label = inp.getAttribute('placeholder') || inp.getAttribute('aria-label') || inp.name || inp.innerText || inp.value;
+              if (label && label.trim()) {
+                formSummary += `<tr><td style="width: 35%; font-weight: bold; color: #475569; border-bottom: 1pt solid #e2e8f0;">${label.trim()}</td><td style="color: #64748b; border-bottom: 1pt solid #e2e8f0; font-family: Consolas, monospace;">[ Campo editable ]</td></tr>`;
+              }
+            });
+            formSummary += '</table>';
+            blocks.push(formSummary);
+          }
         }
       });
 
       return {
         title: title,
         url: url,
-        html: bodyClone.innerHTML
+        contentHtml: blocks.join('\n')
       };
     });
 
@@ -461,6 +498,7 @@ btnDocx.addEventListener('click', async () => {
       year: 'numeric', month: 'long', day: 'numeric'
     });
 
+    // Plantilla Word optimizada con formato de sección única y medidas fijas en pulgadas
     const wordTemplate = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
@@ -476,75 +514,98 @@ btnDocx.addEventListener('click', async () => {
         </xml>
         <![endif]-->
         <style>
-          @page {
-            size: 21.0cm 29.7cm; /* A4 */
-            margin: 1.8cm 1.8cm 1.8cm 1.8cm;
-            mso-page-orientation: portrait;
+          @page Section1 {
+            size: 8.27in 11.69in; /* A4 */
+            margin: 0.8in 0.8in 0.8in 0.8in;
+            mso-header-margin: 0.5in;
+            mso-footer-margin: 0.5in;
+            mso-paper-source: 0;
+          }
+          div.Section1 {
+            page: Section1;
           }
           body {
             font-family: 'Segoe UI', Calibri, Arial, sans-serif;
             font-size: 11pt;
-            line-height: 1.5;
+            line-height: 1.45;
             color: #1e293b;
+            margin: 0;
+            padding: 0;
           }
-          h1 { color: #0f172a; font-size: 22pt; margin: 0 0 6px 0; }
+          h1 {
+            color: #0f172a;
+            font-size: 20pt;
+            font-weight: bold;
+            margin: 0 0 8pt 0;
+            line-height: 1.2;
+          }
+          .bwd-card {
+            background-color: #f8fafc;
+            border: 1pt solid #cbd5e1;
+            border-left: 3.5pt solid #2563eb;
+            padding: 8pt 12pt;
+            margin-bottom: 14pt;
+          }
           .bwd-meta {
             font-size: 9pt;
             color: #64748b;
-            margin-bottom: 20px;
-            padding: 8px 12px;
-            background: #f8fafc;
-            border-left: 3px solid #2563eb;
+            margin: 2pt 0;
           }
           .visual-box {
-            border: 1px solid #cbd5e1;
-            padding: 10px;
+            border: 1pt solid #cbd5e1;
+            padding: 6pt;
             background: #ffffff;
-            margin-bottom: 25px;
+            margin-bottom: 16pt;
+            text-align: center;
           }
           .visual-tag {
-            font-size: 9pt;
+            font-size: 8.5pt;
             font-weight: bold;
             color: #2563eb;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 8px;
+            letter-spacing: 0.5pt;
+            margin-bottom: 6pt;
+            text-align: left;
           }
-          .visual-img {
-            width: 100%;
-            max-width: 100%;
+          /* Dimensión fija en pulgadas calculada exactamente para el ancho A4 útil */
+          img.visual-img {
+            width: 6.4in;
+            max-width: 6.4in;
+            max-height: 8.0in;
             height: auto;
-            border: 1px solid #e2e8f0;
+            border: 1pt solid #e2e8f0;
             display: block;
+            margin: 0 auto;
           }
           .page-break {
             page-break-before: always;
-            margin-top: 30px;
+            margin-top: 16pt;
           }
-          table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-          th, td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 10pt; }
-          th { background-color: #f1f5f9; font-weight: bold; }
         </style>
       </head>
       <body>
-        <h1>${extracted.title}</h1>
-        <div class="bwd-meta">
-          <strong>Origen:</strong> <a href="${extracted.url}">${extracted.url}</a><br/>
-          <strong>Fecha de exportación:</strong> ${today} — Generado con BWD Pro
-        </div>
+        <div class="Section1">
+          <h1>${extracted.title}</h1>
+          <div class="bwd-card">
+            <div class="bwd-meta"><strong>Origen:</strong> <a href="${extracted.url}">${extracted.url}</a></div>
+            <div class="bwd-meta"><strong>Fecha de exportación:</strong> ${today} — Generado con BWD Pro</div>
+          </div>
 
-        <!-- 1. VISTA VISUAL FIEL (PRESERVA LA ESENCIA, COLORES Y DIMENSIONES) -->
-        <div class="visual-box">
-          <div class="visual-tag">Maquetación Visual y Dimensiones Originales</div>
-          <img class="visual-img" src="${visualSnapshotUrl}" alt="${extracted.title}" />
-        </div>
+          <!-- 1. VISTA VISUAL FIEL (ACOTADA A PÁGINA A4) -->
+          <div class="visual-box">
+            <div class="visual-tag">Maquetación Visual y Dimensiones Originales</div>
+            <img class="visual-img" src="${visualSnapshotUrl}" alt="${extracted.title}" />
+          </div>
 
-        <!-- 2. CONTENIDO ESTRUCTURADO Y EDITABLE -->
-        <div class="page-break">
-          <h2 style="color: #1e40af; border-bottom: 2px solid #2563eb; padding-bottom: 6px; margin-bottom: 16px;">
-            Contenido Estructurado y Formularios Editables
-          </h2>
-          ${extracted.html}
+          ${extracted.contentHtml ? `
+          <!-- 2. CONTENIDO ESTRUCTURADO Y EDITABLE (SÓLO SI EXISTE CONTENIDO REAL) -->
+          <div class="page-break">
+            <h2 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt; margin-bottom: 12pt; font-size: 15pt;">
+              Contenido Estructurado y Formularios Editables
+            </h2>
+            ${extracted.contentHtml}
+          </div>
+          ` : ''}
         </div>
       </body>
       </html>
