@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BWD — Modo Creador Inteligente</title>
+  
+  <!-- Estilos de Frontend Embellecedor Suite -->
+  <link rel="stylesheet" href="../Fronted%20embellecedor/ui-pro-max/styles/ui-pro-max.css">
+  <link rel="stylesheet" href="../Fronted%20embellecedor/impecable/styles/impeccable.css">
+  <link rel="stylesheet" href="../Fronted%20embellecedor/impecable/styles/buttons.css">
+  <link rel="stylesheet" href="../Fronted%20embellecedor/skill-ul/styles/skill-ul.css">
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body class="editor-body">
+
+  <!-- BARRA DE HERRAMIENTAS EJECUTIVA FLOTANTE (GLASSMORPHISM) -->
+  <header class="pro-header-glass editor-header">
+    <div class="header-inner">
+      
+      <!-- Marca y origen -->
+      <div class="header-brand">
+        <div class="brand-badge-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+          </svg>
+        </div>
+        <div class="brand-text-block">
+          <div class="brand-name-wrap">
+            <span class="brand-name">Creador Inteligente</span>
+            <span class="pro-badge glow-cyan">PRO</span>
+          </div>
+          <div class="page-origin" id="pageOrigin" title="URL original del clon">Cargando clon...</div>
+        </div>
+      </div>
+
+      <!-- Herramientas de Edición Visual -->
+      <div class="editor-toolbox">
+        <button id="toolEdit" class="tool-btn is-active" type="button" title="Haz clic en cualquier texto para escribir directamente">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          <span>Editar Texto</span>
+        </button>
+
+        <button id="toolDelete" class="tool-btn" type="button" title="Haz clic en cualquier bloque o imagen para eliminarlo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          <span>Eliminar Elemento</span>
+        </button>
+
+        <button id="toolRedact" class="tool-btn" type="button" title="Censurar / Tachar información confidencial (nombres, balances, emails)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span>Censurar Datos</span>
+        </button>
+
+        <button id="btnAutoRedact" class="tool-btn tool-btn-special" type="button" title="Censurar automáticamente nombres, correos y fotos de perfil detectados">
+          <span style="color: #38bdf8;">✦</span>
+          <span>Auto-Censura Perfil</span>
+        </button>
+
+        <div class="toolbox-divider"></div>
+
+        <button id="btnUndo" class="tool-btn" type="button" title="Deshacer último cambio (Ctrl + Z)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+          <span>Deshacer</span>
+        </button>
+
+        <button id="btnReset" class="tool-btn" type="button" title="Restablecer al diseño original sin cambios">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+          <span>Restablecer</span>
+        </button>
+      </div>
+
+      <!-- Exportación Directa -->
+      <div class="header-actions">
+        <button id="btnEditorPdf" class="imp-btn imp-btn-primary action-btn-glow" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <polyline points="9 15 12 18 15 15"></polyline>
+          </svg>
+          <span>Descargar PDF</span>
+        </button>
+
+        <button id="btnEditorDocx" class="imp-btn" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          <span>Word (.doc)</span>
+        </button>
+
+        <button id="btnEditorPng" class="imp-btn" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          <span>PNG HD</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- BARRA DE INFORMACIÓN Y GUÍA RÁPIDA -->
+  <div class="editor-guide-bar">
+    <div class="guide-tip">
+      <span class="guide-dot"></span>
+      <span id="activeToolHint">Modo Editar Texto activo: Haz clic en cualquier título, nombre o párrafo para modificarlo en tiempo real.</span>
+    </div>
+    <div class="changes-counter" id="changesCounter">0 cambios realizados</div>
+  </div>
+
+  <!-- CONTENEDOR DEL ESPACIO DE TRABAJO (CLON DE LA PÁGINA) -->
+  <main class="editor-workspace">
+    <div class="workspace-viewport-wrap">
+      <iframe id="cloneFrame" class="clone-iframe" sandbox="allow-same-origin allow-scripts" title="Clon de la página web"></iframe>
+    </div>
+  </main>
+
+  <!-- TOAST DE NOTIFICACIÓN FLOTANTE -->
+  <div id="toastNotification" class="editor-toast" style="display: none;">
+    <span class="toast-icon">✓</span>
+    <span id="toastMessage">Acción completada</span>
+  </div>
+
+  <!-- MODAL DE PROGRESO DE EXPORTACIÓN -->
+  <div id="exportModal" class="export-modal" style="display: none;">
+    <div class="export-modal-card pro-beam-card">
+      <div class="pro-beam-content">
+        <div class="export-modal-header">
+          <span class="pro-badge glow-cyan">Procesando</span>
+          <h3 id="exportModalTitle" style="color: #fff; margin-top: 8px;">Generando documento...</h3>
+        </div>
+        <p id="exportModalStatus" style="color: #94a3b8; font-size: 13px; margin: 8px 0 16px 0;">Capturando el clon modificado...</p>
+        <div class="skill-bar-track">
+          <div id="exportProgressBar" class="skill-bar-fill" style="width: 25%;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../libs/html2canvas.min.js"></script>
+  <script src="../libs/jspdf.umd.min.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>

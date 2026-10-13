@@ -7,7 +7,8 @@
     "activeTab",
     "tabs",
     "scripting",
-    "downloads"
+    "downloads",
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -22,7 +23,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "libs/*"
+        "libs/*",
+        "editor/*"
       ],
       "matches": [
         "<all_urls>"

@@ -21,12 +21,18 @@ const tabHostEl = document.getElementById('tabHost');
 const btnPdfVisual = document.getElementById('btnPdfVisual');
 const btnDocx = document.getElementById('btnDocx');
 const btnPngFull = document.getElementById('btnPngFull');
+const btnLaunchEditor = document.getElementById('btnLaunchEditor');
+
+const tabNavExport = document.getElementById('tabNavExport');
+const tabNavEditor = document.getElementById('tabNavEditor');
+const panelExport = document.getElementById('panelExport');
+const panelEditor = document.getElementById('panelEditor');
 
 const cleanDomCheckbox = document.getElementById('cleanDom');
 const expandScrollCheckbox = document.getElementById('expandScroll');
 const highQualityCheckbox = document.getElementById('highQuality');
 
-const actionButtons = [btnPdfVisual, btnDocx, btnPngFull];
+const actionButtons = [btnPdfVisual, btnDocx, btnPngFull, btnLaunchEditor];
 
 // ----------------------------------------------------------------------------
 // 1. Estados y Progreso
@@ -911,7 +917,77 @@ function initTooltips() {
   });
 }
 
+// ----------------------------------------------------------------------------
+// 7. Navegación de Pestañas y Lanzador de Modo Creador
+// ----------------------------------------------------------------------------
+
+function initTabs() {
+  if (!tabNavExport || !tabNavEditor) return;
+
+  tabNavExport.addEventListener('click', () => {
+    tabNavExport.classList.add('is-active');
+    tabNavEditor.classList.remove('is-active');
+    if (panelExport) panelExport.style.display = 'block';
+    if (panelEditor) panelEditor.style.display = 'none';
+  });
+
+  tabNavEditor.addEventListener('click', () => {
+    tabNavEditor.classList.add('is-active');
+    tabNavExport.classList.remove('is-active');
+    if (panelExport) panelExport.style.display = 'none';
+    if (panelEditor) panelEditor.style.display = 'block';
+  });
+}
+
+function initEditorLauncher() {
+  if (!btnLaunchEditor) return;
+
+  btnLaunchEditor.addEventListener('click', async () => {
+    try {
+      setBusy(true);
+      setProgress(25, "Clonando diseño y estructura de la página...", 'busy');
+
+      const tab = await getActiveTab();
+
+      const cloneData = await executeInPage(() => {
+        return {
+          html: document.documentElement.outerHTML,
+          title: document.title || 'Página Web',
+          url: window.location.href,
+          baseURI: document.baseURI || window.location.href
+        };
+      });
+
+      if (!cloneData || !cloneData.html) {
+        throw new Error("No se pudo extraer el HTML de la página activa.");
+      }
+
+      setProgress(60, "Guardando clon en almacenamiento local...", 'busy');
+      await browser.storage.local.set({ bwd_clone_data: cloneData });
+
+      setProgress(85, "Abriendo Modo Creador Inteligente...", 'busy');
+      await browser.tabs.create({
+        url: browser.runtime.getURL('editor/editor.html')
+      });
+
+      setProgress(100, "¡Modo Creador Inteligente iniciado!", 'success');
+      setBusy(false);
+
+      setTimeout(() => {
+        window.close();
+      }, 400);
+
+    } catch (err) {
+      console.error("Error al abrir Modo Creador:", err);
+      setProgress(0, `Error: ${formatErrorMessage(err)}`, 'error');
+      setBusy(false);
+    }
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initTabDetection();
   initTooltips();
+  initTabs();
+  initEditorLauncher();
 });
