@@ -348,14 +348,14 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
   }, [{ clean, expand }]);
 
   try {
-    // 2. Medir dimensiones completas del documento en la página
-    const metrics = await executeInPage(() => {
+    // 2. Medir dimensiones completas y extraer contenido semántico/posicional del DOM
+    const pageData = await executeInPage(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       if (document.documentElement) document.documentElement.scrollTop = 0;
       if (document.body) document.body.scrollTop = 0;
 
-      const vH = window.innerHeight;
-      const vW = window.innerWidth;
+      const vH = window.innerHeight || 800;
+      const vW = window.innerWidth || 1200;
       const docEl = document.documentElement;
       const body = document.body;
 
@@ -376,17 +376,145 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
         docEl ? docEl.offsetWidth : 0
       );
 
+      // A. Extraer bloques de texto con coordenadas exactas para la capa invisible en PDF (OCR nativo)
+      const textBlocks = [];
+      try {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode(node) {
+            if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+            const parent = node.parentElement;
+            if (!parent) return NodeFilter.FILTER_REJECT;
+            const tag = parent.tagName.toLowerCase();
+            if (['script', 'style', 'noscript', 'svg', 'canvas', 'template'].includes(tag)) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            const s = window.getComputedStyle(parent);
+            if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') {
+              return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+
+        const range = document.createRange();
+        let tNode;
+        const sX = window.scrollX || window.pageXOffset || 0;
+        const sY = window.scrollY || window.pageYOffset || 0;
+
+        while ((tNode = walker.nextNode())) {
+          const raw = tNode.textContent;
+          const clean = raw.replace(/\s+/g, ' ');
+          if (!clean.trim()) continue;
+
+          const parent = tNode.parentElement;
+          const style = window.getComputedStyle(parent);
+          const fSize = parseFloat(style.fontSize) || 14;
+
+          try {
+            range.selectNodeContents(tNode);
+            const rects = range.getClientRects();
+            if (rects && rects.length > 0) {
+              const r = rects[0];
+              if (r.width > 2 && r.height > 2) {
+                textBlocks.push({
+                  text: clean.trim(),
+                  x: Math.round(r.left + sX),
+                  y: Math.round(r.top + sY),
+                  width: Math.round(r.width),
+                  height: Math.round(r.height),
+                  fontSize: Math.round(fSize)
+                });
+              }
+            } else {
+              const bRect = parent.getBoundingClientRect();
+              if (bRect.width > 2 && bRect.height > 2) {
+                textBlocks.push({
+                  text: clean.trim(),
+                  x: Math.round(bRect.left + sX),
+                  y: Math.round(bRect.top + sY),
+                  width: Math.round(bRect.width),
+                  height: Math.round(bRect.height),
+                  fontSize: Math.round(fSize)
+                });
+              }
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+
+      // B. Extraer estructura semántica completa para Word (.docx)
+      const structuredItems = [];
+      try {
+        const selectors = 'h1, h2, h3, h4, h5, h6, p, blockquote, ul, ol, table, pre';
+        const elements = document.querySelectorAll(selectors);
+
+        elements.forEach(el => {
+          const s = window.getComputedStyle(el);
+          if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return;
+
+          if (el.closest('table') && el.tagName.toLowerCase() !== 'table') return;
+          if (el.closest('ul, ol') && !['ul', 'ol'].includes(el.tagName.toLowerCase())) return;
+
+          const tag = el.tagName.toLowerCase();
+
+          if (tag.startsWith('h')) {
+            const level = parseInt(tag[1], 10) || 1;
+            const text = el.textContent.trim();
+            if (text) structuredItems.push({ type: 'heading', level, text });
+          } else if (tag === 'p') {
+            const text = el.textContent.trim();
+            if (text) structuredItems.push({ type: 'paragraph', text });
+          } else if (tag === 'blockquote') {
+            const text = el.textContent.trim();
+            if (text) structuredItems.push({ type: 'quote', text });
+          } else if (tag === 'ul' || tag === 'ol') {
+            const liTexts = [];
+            el.querySelectorAll(':scope > li, li').forEach(li => {
+              const t = li.textContent.trim();
+              if (t) liTexts.push(t);
+            });
+            if (liTexts.length > 0) {
+              structuredItems.push({ type: 'list', isOrdered: tag === 'ol', items: liTexts });
+            }
+          } else if (tag === 'table') {
+            const rows = [];
+            el.querySelectorAll('tr').forEach(tr => {
+              const cells = [];
+              tr.querySelectorAll('th, td').forEach(td => {
+                cells.push({
+                  text: td.textContent.trim(),
+                  isHeader: td.tagName.toLowerCase() === 'th'
+                });
+              });
+              if (cells.length > 0) rows.push(cells);
+            });
+            if (rows.length > 0) structuredItems.push({ type: 'table', rows });
+          } else if (tag === 'pre') {
+            const text = el.textContent.trim();
+            if (text) structuredItems.push({ type: 'code', text });
+          }
+        });
+      } catch (_) {}
+
       return {
-        title: document.title || 'documento_web',
-        width: scrollW,
-        height: scrollH,
-        viewportHeight: vH,
-        viewportWidth: vW,
-        dpr: window.devicePixelRatio || 1
+        metrics: {
+          title: document.title || 'documento_web',
+          width: scrollW,
+          height: scrollH,
+          viewportHeight: vH,
+          viewportWidth: vW,
+          dpr: window.devicePixelRatio || 1
+        },
+        textBlocks,
+        structuredItems
       };
     });
 
-    if (!metrics) throw new Error("No se pudo obtener las métricas de la página.");
+    if (!pageData || !pageData.metrics) throw new Error("No se pudo obtener las métricas de la página.");
+
+    const metrics = pageData.metrics;
+    const textBlocks = pageData.textBlocks || [];
+    const structuredItems = pageData.structuredItems || [];
 
     const totalHeight = Math.min(metrics.height, 16000);
     const viewportH = metrics.viewportHeight;
@@ -410,7 +538,7 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
       const ctx = singleCanvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
 
-      return { canvas: singleCanvas, isSingleScreen: true, metrics };
+      return { canvas: singleCanvas, isSingleScreen: true, metrics, textBlocks, structuredItems };
     }
 
     // 3. Captura multi-slice con avance real y prevención de duplicados
@@ -481,7 +609,7 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
       singleCanvas.height = img.height;
       const ctx = singleCanvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
-      return { canvas: singleCanvas, isSingleScreen: true, metrics };
+      return { canvas: singleCanvas, isSingleScreen: true, metrics, textBlocks, structuredItems };
     }
 
     onProgress(75, "Ensamblando imagen completa sin superposiciones ni duplicados...");
@@ -531,7 +659,7 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
       }
     }
 
-    return { canvas: masterCanvas, isSingleScreen: false, metrics };
+    return { canvas: masterCanvas, isSingleScreen: false, metrics, textBlocks, structuredItems };
 
   } finally {
     // Restaurar siempre todos los estilos modificados en la página
@@ -576,7 +704,7 @@ btnPdfVisual.addEventListener('click', async () => {
     const expand = expandScrollCheckbox.checked;
     const tab = await getActiveTab();
 
-    const { canvas, isSingleScreen, metrics } = await captureFullPageCanvas({
+    const { canvas, isSingleScreen, metrics, textBlocks } = await captureFullPageCanvas({
       clean,
       expand,
       onProgress: (pct, msg) => setProgress(pct, msg, 'busy')
@@ -612,6 +740,30 @@ btnPdfVisual.addEventListener('click', async () => {
 
     const imgData = exportCanvas.toDataURL('image/jpeg', 0.95);
     pdf.addImage(imgData, 'JPEG', 0, 0, canvasWidth, canvasHeight, undefined, 'FAST');
+
+    // Incrustar capa de texto nativo invisible (ISO 32000-1 modo '3 Tr')
+    // Permite selección de texto con ratón, copiar y buscar (Ctrl+F) como OCR nativo de alta precisión
+    if (textBlocks && textBlocks.length > 0) {
+      setProgress(90, "Incrustando capa de texto seleccionable y buscable (OCR)...", 'busy');
+      const scaleX = canvasWidth / Math.max(1, metrics.viewportWidth);
+      const totalCssH = metrics.height || (canvasHeight / scaleX);
+      const scaleY = canvasHeight / Math.max(1, totalCssH);
+
+      for (const tb of textBlocks) {
+        if (!tb.text) continue;
+        const posX = Math.round(tb.x * scaleX);
+        const posY = Math.round(tb.y * scaleY);
+        const fSize = Math.max(6, Math.min(72, Math.round(tb.fontSize * scaleY)));
+
+        try {
+          pdf.setFontSize(fSize);
+          pdf.text(tb.text, posX, posY, {
+            baseline: 'top',
+            renderingMode: 'invisible'
+          });
+        } catch (_) {}
+      }
+    }
 
     const filename = sanitizeFilename(metrics.title || tab.title, 'pdf');
     setProgress(95, "Descargando documento PDF fiel...", 'busy');
@@ -748,7 +900,18 @@ class SimpleZip {
   }
 }
 
-function buildDocx(slices, isLandscape = false) {
+function escapeXml(unsafe) {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+}
+
+function buildDocx(slices, isLandscape = false, structuredItems = []) {
   const zip = new SimpleZip();
 
   let relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n`;
@@ -825,6 +988,152 @@ function buildDocx(slices, isLandscape = false) {
   });
 
   relsXml += `</Relationships>`;
+
+  // Incrustar sección de texto editable y estructurado (OCR / DOM Nativo)
+  if (structuredItems && structuredItems.length > 0) {
+    bodyXml += `
+    <w:p>
+      <w:pPr>
+        <w:pageBreakBefore/>
+        <w:spacing w:before="240" w:after="140"/>
+      </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:b/>
+          <w:sz w:val="32"/>
+          <w:color w:val="2563EB"/>
+        </w:rPr>
+        <w:t xml:space="preserve">Contenido y Texto Editable del Documento</w:t>
+      </w:r>
+    </w:p>`;
+
+    structuredItems.forEach(item => {
+      if (item.type === 'heading') {
+        const sz = item.level === 1 ? '34' : item.level === 2 ? '28' : '24';
+        const color = item.level === 1 ? '0F172A' : item.level === 2 ? '1E293B' : '334155';
+        const spBefore = item.level === 1 ? '260' : '200';
+        bodyXml += `
+        <w:p>
+          <w:pPr>
+            <w:spacing w:before="${spBefore}" w:after="100"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr>
+              <w:b/>
+              <w:sz w:val="${sz}"/>
+              <w:color w:val="${color}"/>
+            </w:rPr>
+            <w:t xml:space="preserve">${escapeXml(item.text)}</w:t>
+          </w:r>
+        </w:p>`;
+      } else if (item.type === 'paragraph') {
+        bodyXml += `
+        <w:p>
+          <w:pPr>
+            <w:spacing w:before="60" w:after="120" w:line="276" w:lineRule="auto"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr>
+              <w:sz w:val="22"/>
+              <w:color w:val="334155"/>
+            </w:rPr>
+            <w:t xml:space="preserve">${escapeXml(item.text)}</w:t>
+          </w:r>
+        </w:p>`;
+      } else if (item.type === 'quote') {
+        bodyXml += `
+        <w:p>
+          <w:pPr>
+            <w:spacing w:before="120" w:after="120"/>
+            <w:ind w:left="400"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr>
+              <w:i/>
+              <w:sz w:val="22"/>
+              <w:color w:val="64748B"/>
+            </w:rPr>
+            <w:t xml:space="preserve">${escapeXml(item.text)}</w:t>
+          </w:r>
+        </w:p>`;
+      } else if (item.type === 'list') {
+        (item.items || []).forEach((liText, liIdx) => {
+          const bullet = item.isOrdered ? `${liIdx + 1}. ` : '•  ';
+          bodyXml += `
+          <w:p>
+            <w:pPr>
+              <w:spacing w:before="40" w:after="40"/>
+              <w:ind w:left="360"/>
+            </w:pPr>
+            <w:r>
+              <w:rPr>
+                <w:sz w:val="22"/>
+                <w:color w:val="334155"/>
+              </w:rPr>
+              <w:t xml:space="preserve">${escapeXml(bullet + liText)}</w:t>
+            </w:r>
+          </w:p>`;
+        });
+      } else if (item.type === 'table') {
+        bodyXml += `
+        <w:tbl>
+          <w:tblPr>
+            <w:tblW w:w="0" w:type="auto"/>
+            <w:tblBorders>
+              <w:top w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+              <w:left w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+              <w:bottom w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+              <w:right w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>
+              <w:insideH w:val="single" w:sz="4" w:space="0" w:color="E2E8F0"/>
+              <w:insideV w:val="single" w:sz="4" w:space="0" w:color="E2E8F0"/>
+            </w:tblBorders>
+          </w:tblPr>`;
+        (item.rows || []).forEach(row => {
+          bodyXml += `<w:tr>`;
+          row.forEach(cell => {
+            const isH = cell.isHeader;
+            bodyXml += `
+            <w:tc>
+              <w:tcPr>
+                <w:tcW w:w="0" w:type="auto"/>
+                <w:tcMar><w:top w:w="120"/><w:bottom w:w="120"/><w:left w:w="160"/><w:right w:w="160"/></w:tcMar>
+                ${isH ? '<w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>' : ''}
+              </w:tcPr>
+              <w:p>
+                <w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr>
+                <w:r>
+                  <w:rPr>
+                    ${isH ? '<w:b/>' : ''}
+                    <w:sz w:val="20"/>
+                    <w:color w:val="${isH ? '0F172A' : '334155'}"/>
+                  </w:rPr>
+                  <w:t xml:space="preserve">${escapeXml(cell.text)}</w:t>
+                </w:r>
+              </w:p>
+            </w:tc>`;
+          });
+          bodyXml += `</w:tr>`;
+        });
+        bodyXml += `</w:tbl>`;
+      } else if (item.type === 'code') {
+        bodyXml += `
+        <w:p>
+          <w:pPr>
+            <w:spacing w:before="80" w:after="80"/>
+            <w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/>
+          </w:pPr>
+          <w:r>
+            <w:rPr>
+              <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
+              <w:sz w:val="20"/>
+              <w:color w:val="0F172A"/>
+            </w:rPr>
+            <w:t xml:space="preserve">${escapeXml(item.text)}</w:t>
+          </w:r>
+        </w:p>`;
+      }
+    });
+  }
 
   const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -936,7 +1245,7 @@ btnDocx.addEventListener('click', async () => {
     const tab = await getActiveTab();
 
     // 1. Obtener la captura de página completa idéntica a la del PDF fiel
-    const { canvas, isSingleScreen, metrics } = await captureFullPageCanvas({
+    const { canvas, isSingleScreen, metrics, structuredItems } = await captureFullPageCanvas({
       clean,
       expand,
       onProgress: (pct, msg) => setProgress(pct, msg, 'busy')
@@ -956,7 +1265,7 @@ btnDocx.addEventListener('click', async () => {
     // Generación nativa de .docx con imágenes integradas en word/media/
     // Libre de advertencias de seguridad y compatible con Word 2013-365, LibreOffice y Google Docs.
     setProgress(93, "Empaquetando documento nativo OpenXML (.docx)...", 'busy');
-    const docxUint8 = buildDocx(slices, isLandscape);
+    const docxUint8 = buildDocx(slices, isLandscape, structuredItems);
 
     const blob = new Blob([docxUint8], {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
