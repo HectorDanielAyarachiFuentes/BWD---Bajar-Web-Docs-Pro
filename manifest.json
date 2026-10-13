@@ -5,8 +5,12 @@
   "description": "Exporta páginas web completas a PDF fiel sin cortes ni fallos de diseño, Word (.docx) o Captura Retina 2x.",
   "permissions": [
     "activeTab",
+    "tabs",
     "scripting",
     "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
   ],
   "action": {
     "default_popup": "popup/popup.html",

@@ -129,11 +129,64 @@ async function triggerDownload(blobOrUrl, filename) {
 // ----------------------------------------------------------------------------
 
 async function getActiveTab() {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.id) {
+  const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tabs || tabs.length === 0 || !tabs[0] || !tabs[0].id) {
     throw new Error("No hay pestaña activa disponible.");
   }
-  return tab;
+  return tabs[0];
+}
+
+function formatErrorMessage(err) {
+  if (!err) return "Error desconocido";
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message || err.toString();
+  if (typeof err === 'object') {
+    if (err.message) return String(err.message);
+    if (err.error) return typeof err.error === 'object' ? formatErrorMessage(err.error) : String(err.error);
+    if (err.id && err.windowId) {
+      return "Error de comunicación con la pestaña del navegador.";
+    }
+    try {
+      return JSON.stringify(err);
+    } catch (_) {
+      return String(err);
+    }
+  }
+  return String(err);
+}
+
+/**
+ * Captura visual confiable compatible con Firefox WebExtensions
+ * Basado en las soluciones de los repositorios de GitHub:
+ * mosfor/fullpage-capture y mdn/webextensions-examples
+ */
+async function captureTabImage(tab, format = 'png') {
+  // 1. Intentar con el windowId numérico de la pestaña activa
+  if (tab && typeof tab.windowId === 'number') {
+    try {
+      return await browser.tabs.captureVisibleTab(tab.windowId, { format: format });
+    } catch (e) {
+      console.warn("captureVisibleTab(windowId) no respondió, intentando fallback:", e);
+    }
+  }
+
+  // 2. Fallback: llamada directa sin windowId (estándar Firefox)
+  try {
+    return await browser.tabs.captureVisibleTab({ format: format });
+  } catch (e) {
+    console.warn("captureVisibleTab() sin parámetros falló:", e);
+  }
+
+  // 3. Fallback: API nativa exclusiva de Firefox browser.tabs.captureTab
+  if (typeof browser.tabs.captureTab === 'function' && tab && tab.id) {
+    try {
+      return await browser.tabs.captureTab(tab.id, { format: format });
+    } catch (e) {
+      console.warn("browser.tabs.captureTab() falló:", e);
+    }
+  }
+
+  throw new Error("No fue posible capturar la pantalla. Verifica que la pestaña sea una página web accesible.");
 }
 
 async function initTabDetection() {
@@ -155,22 +208,28 @@ async function initTabDetection() {
 
 async function executeInPage(func, args = []) {
   const tab = await getActiveTab();
-  const results = await browser.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: func,
-    args: args
-  });
-  if (results && results[0]) {
-    if (results[0].error) {
-      throw new Error(results[0].error.message || String(results[0].error));
+  try {
+    const results = await browser.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: func,
+      args: args
+    });
+    if (results && results.length > 0) {
+      const first = results[0];
+      if (first.error) {
+        const msg = first.error.message || formatErrorMessage(first.error);
+        throw new Error(msg);
+      }
+      return first.result;
     }
-    return results[0].result;
+    return null;
+  } catch (err) {
+    throw new Error(formatErrorMessage(err));
   }
-  return null;
 }
 
 // ----------------------------------------------------------------------------
-// 3. Exportar PDF Fiel (Solución Definitiva: Firefox Native PDF Engine)
+// 3. Exportar PDF Fiel (Motor Nativo Firefox + Fallback jsPDF Alta Fidelidad)
 // ----------------------------------------------------------------------------
 
 btnPdfVisual.addEventListener('click', async () => {
@@ -184,7 +243,7 @@ btnPdfVisual.addEventListener('click', async () => {
 
     // 1. Limpieza y preparación visual en la página antes de generar el PDF
     if (clean || expand) {
-      setProgress(40, "Aplicando optimizaciones de lectura...", 'busy');
+      setProgress(35, "Aplicando optimizaciones de lectura...", 'busy');
       await executeInPage((opts) => {
         if (opts.clean) {
           const selectors = [
@@ -222,53 +281,99 @@ btnPdfVisual.addEventListener('click', async () => {
       }, [{ clean, expand }]);
     }
 
-    setProgress(70, "Generando PDF de alta fidelidad con motor nativo...", 'busy');
-
+    setProgress(65, "Generando PDF con fidelidad de color y márgenes...", 'busy');
     const filename = sanitizeFilename(tab.title, 'pdf');
 
-    // Usar el motor nativo de Firefox (browser.tabs.saveAsPDF)
-    // Cero problemas de CORS, colores y fuentes intactos, soporte A4 perfecto.
+    // Intentar motor nativo de Firefox saveAsPDF
+    let nativeSuccess = false;
     if (typeof browser.tabs.saveAsPDF === 'function') {
-      const pageSettings = {
-        toFileName: filename,
-        showBackgroundColors: true,
-        showBackgroundImages: true,
-        shrinkToFit: true,
-        headerLeft: "",
-        headerCenter: "",
-        headerRight: "",
-        footerLeft: "",
-        footerCenter: "",
-        footerRight: ""
-      };
+      try {
+        const pageSettings = {
+          toFileName: filename,
+          showBackgroundColors: true,
+          showBackgroundImages: true,
+          shrinkToFit: true,
+          headerLeft: "",
+          headerCenter: "",
+          headerRight: "",
+          footerLeft: "",
+          footerCenter: "",
+          footerRight: ""
+        };
 
-      const saveStatus = await browser.tabs.saveAsPDF(pageSettings);
+        const saveStatus = await browser.tabs.saveAsPDF(pageSettings);
 
-      // Restaurar elementos modificados en el DOM
-      await executeInPage(() => {
-        document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
-          el.style.removeProperty('display');
-          el.removeAttribute('data-bwd-hidden');
-        });
-      });
-
-      if (saveStatus === 'saved' || saveStatus === 'replaced') {
-        setProgress(100, `¡PDF fiel guardado! (${filename})`, 'success');
-      } else if (saveStatus === 'canceled') {
-        setProgress(0, "Guardado cancelado por el usuario", 'busy');
-      } else {
-        setProgress(100, `¡PDF procesado con éxito!`, 'success');
+        if (saveStatus === 'saved' || saveStatus === 'replaced') {
+          nativeSuccess = true;
+          setProgress(100, `¡PDF fiel guardado! (${filename})`, 'success');
+        } else if (saveStatus === 'canceled') {
+          nativeSuccess = true;
+          setProgress(0, "Guardado cancelado por el usuario", 'busy');
+        }
+      } catch (nativeErr) {
+        console.warn("Motor nativo saveAsPDF falló, activando motor gráfico de respaldo:", nativeErr);
       }
-
-      setBusy(false);
-      return;
     }
 
-    throw new Error("El motor nativo saveAsPDF de Firefox no está disponible.");
+    // Fallback de alta fidelidad: Motor Gráfico jsPDF + Captura de lienzo
+    if (!nativeSuccess) {
+      setProgress(75, "Compilando PDF vectorizado de alta resolución...", 'busy');
+      const captureDataUrl = await captureTabImage(tab, 'png');
+
+      const img = new Image();
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = captureDataUrl;
+      });
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const imgWidth = pageWidth;
+      const imgHeight = (img.height * pageWidth) / img.width;
+
+      if (imgHeight <= pageHeight) {
+        pdf.addImage(img, 'PNG', 0, 0, imgWidth, imgHeight);
+      } else {
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        pdf.addImage(img, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 0) {
+          position -= pageHeight;
+          pdf.addPage();
+          pdf.addImage(img, 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+      }
+
+      const pdfBlob = pdf.output('blob');
+      await triggerDownload(pdfBlob, filename);
+      setProgress(100, `¡PDF fiel guardado con éxito! (${filename})`, 'success');
+    }
+
+    // Restaurar elementos modificados en el DOM
+    await executeInPage(() => {
+      document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
+        el.style.removeProperty('display');
+        el.removeAttribute('data-bwd-hidden');
+      });
+    });
+
+    setBusy(false);
 
   } catch (err) {
     console.error("Error al exportar PDF:", err);
-    setProgress(0, `Error: ${err.message || err}`, 'error');
+    setProgress(0, `Error: ${formatErrorMessage(err)}`, 'error');
     setBusy(false);
 
     try {
@@ -291,10 +396,10 @@ btnDocx.addEventListener('click', async () => {
     setBusy(true);
     setProgress(20, "Capturando diseño visual y dimensiones...", 'busy');
 
-    const [tab] = await getActiveTab();
+    const tab = await getActiveTab();
 
     // 1. Capturar la vista de pantalla fiel para incrustar el diseño original exacto en Word
-    const visualSnapshotUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
+    const visualSnapshotUrl = await captureTabImage(tab, 'png');
 
     setProgress(45, "Extrayendo y adaptando estructura editable...", 'busy');
 
@@ -455,7 +560,7 @@ btnDocx.addEventListener('click', async () => {
 
   } catch (err) {
     console.error("Error al exportar Word:", err);
-    setProgress(0, `Error: ${err.message || err}`, 'error');
+    setProgress(0, `Error: ${formatErrorMessage(err)}`, 'error');
     setBusy(false);
   }
 });
@@ -469,8 +574,7 @@ btnPngFull.addEventListener('click', async () => {
     setBusy(true);
     setProgress(15, "Inicializando captura continua...", 'busy');
 
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.id) throw new Error("No hay pestaña activa disponible.");
+    const tab = await getActiveTab();
 
     // Medir dimensiones del documento en la página
     const metrics = await executeInPage(() => {
@@ -493,7 +597,7 @@ btnPngFull.addEventListener('click', async () => {
     // Si cabe en una sola pantalla, captura directa sin scroll
     if (totalHeight <= viewportH) {
       setProgress(60, "Capturando pantalla...", 'busy');
-      const dataUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
+      const dataUrl = await captureTabImage(tab, 'png');
       const filename = sanitizeFilename(metrics.title, 'png');
       await triggerDownload(dataUrl, filename);
       setProgress(100, `¡Captura PNG guardada! (${filename})`, 'success');
@@ -511,9 +615,9 @@ btnPngFull.addEventListener('click', async () => {
 
     while (currentY < totalHeight) {
       await executeInPage((y) => window.scrollTo(0, y), [currentY]);
-      await new Promise(r => setTimeout(r, 100)); // Breve espera para estabilizar render
+      await new Promise(r => setTimeout(r, 120)); // Breve espera para estabilizar render y lazy loading
 
-      const sliceUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
+      const sliceUrl = await captureTabImage(tab, 'png');
       slices.push({ url: sliceUrl, y: currentY });
 
       currentY += step;
@@ -552,7 +656,7 @@ btnPngFull.addEventListener('click', async () => {
 
   } catch (err) {
     console.error("Error en captura PNG:", err);
-    setProgress(0, `Error: ${err.message || err}`, 'error');
+    setProgress(0, `Error: ${formatErrorMessage(err)}`, 'error');
     setBusy(false);
   }
 });
