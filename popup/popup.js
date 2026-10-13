@@ -111,7 +111,7 @@ function setProgress(percent, label, state = 'busy') {
   progressLabel.textContent = label;
   statusTextEl.textContent = label;
 
-  statusEl.className = 'status-msg';
+  statusEl.className = 'status-indicator';
   if (state === 'busy') {
     statusEl.classList.add('is-busy');
   } else if (state === 'success') {
@@ -129,8 +129,10 @@ function setBusy(isBusy) {
   actionCards.forEach(c => {
     if (isBusy) {
       c.classList.add('is-disabled');
+      c.disabled = true;
     } else {
       c.classList.remove('is-disabled');
+      c.disabled = false;
     }
   });
 }

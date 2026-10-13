@@ -3,24 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BWD Pro — Bajar Web Docs</title>
-  
-  <!-- Tríada de Estilos: Frontend Embellecedor -->
-  <link rel="stylesheet" href="../Fronted%20embellecedor/ui-pro-max/styles/ui-pro-max.css">
-  <link rel="stylesheet" href="../Fronted%20embellecedor/impecable/styles/impeccable.css">
-  <link rel="stylesheet" href="../Fronted%20embellecedor/impecable/styles/buttons.css">
-  <link rel="stylesheet" href="../Fronted%20embellecedor/skill-ul/styles/skill-ul.css">
+  <title>BWD — Bajar Web Docs</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 
-<body class="pro-theme-dark pro-mesh-background">
-  <div class="popup-wrapper">
+<body>
+  <div class="app-container">
 
-    <!-- 1. HEADER GLASSMORPHISM (UI Pro Max) -->
-    <header class="pro-header-glass bwd-header">
-      <div class="bwd-brand">
-        <div class="bwd-logo-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 1. HEADER CORPORATIVO SOBRIO -->
+    <header class="app-header">
+      <div class="brand-group">
+        <div class="brand-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
             <line x1="16" y1="13" x2="8" y2="13"></line>
@@ -28,171 +22,154 @@
             <polyline points="10 9 9 9 8 9"></polyline>
           </svg>
         </div>
-        <div class="bwd-titles">
-          <div class="bwd-title-row">
-            <h1 class="bwd-title">Bajar-Web-Docs</h1>
-            <span class="pro-badge glow-cyan"><span class="pro-pulse-dot"></span> PRO</span>
+        <div class="brand-details">
+          <div class="brand-title-wrap">
+            <h1 class="brand-title">Bajar Web Docs</h1>
+            <span class="version-badge">v0.2</span>
           </div>
-          <p class="bwd-tagline">Captura fiel • Sin cortes de Ctrl+P</p>
+          <div class="domain-indicator" title="Pestaña activa">
+            <span class="domain-dot"></span>
+            <span id="tabHost" class="domain-text">Detectando página activa...</span>
+          </div>
         </div>
-      </div>
-      
-      <!-- Chip de Sitio Activo -->
-      <div id="tabChip" class="tab-chip" title="Pestaña activa detectada">
-        <span class="tab-chip-dot"></span>
-        <span id="tabHost" class="tab-chip-host">Detectando...</span>
       </div>
     </header>
 
-    <main class="bwd-main">
+    <!-- 2. ACCIONES PRINCIPALES (FILAS EJECUTIVAS) -->
+    <main class="app-main">
+      <div class="section-label">Opciones de Exportación</div>
 
-      <!-- 2. TARJETAS DE ACCIÓN PRINCIPALES (UI Pro Max + Impeccable) -->
-      <section class="action-grid">
-        
-        <!-- Botón 1: PDF Fiel Pro (Beam Card) -->
-        <div id="btnPdfVisual" class="pro-beam-card action-card is-primary" role="button" tabindex="0">
-          <div class="pro-beam-content action-content">
-            <div class="action-top">
-              <div class="action-icon cyan-gradient">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <path d="M12 18v-6"></path>
-                  <path d="m9 15 3 3 3-3"></path>
-                </svg>
-              </div>
-              <div class="action-meta">
-                <span class="skill-badge-shine skill-badge-floating">
-                  <span style="color: var(--pro-accent-cyan);">✦</span> Recomendado
-                </span>
-                <span class="format-pill">PDF A4</span>
-              </div>
-            </div>
-            <div class="action-info">
-              <strong class="action-title">Descargar PDF Fiel</strong>
-              <p class="action-desc">Conserva el renderizado visual exacto de pantalla, fondos y columnas.</p>
-            </div>
+      <div class="action-stack">
+
+        <!-- Acción 1: PDF Fiel -->
+        <button id="btnPdfVisual" class="action-row is-recommended" type="button" tabindex="0">
+          <div class="action-icon-box icon-pdf">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="12" y1="18" x2="12" y2="12"></line>
+              <polyline points="9 15 12 18 15 15"></polyline>
+            </svg>
           </div>
-        </div>
-
-        <!-- Botón 2: Exportar a Word (.docx / .doc) -->
-        <div id="btnDocx" class="pro-spotlight-card action-card" role="button" tabindex="0">
-          <div class="action-top">
-            <div class="action-icon emerald-gradient">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-              </svg>
+          <div class="action-meta">
+            <div class="action-headline">
+              <span class="action-name">Descargar PDF Fiel</span>
+              <span class="tag-pill tag-primary">A4 Paginado</span>
             </div>
-            <div class="action-meta">
-              <span class="format-pill emerald">DOCX</span>
-            </div>
+            <p class="action-summary">Respeta el diseño exacto, colores y disposición en pantalla.</p>
           </div>
-          <div class="action-info">
-            <strong class="action-title">Exportar a Word</strong>
-            <p class="action-desc">Extrae artículo limpio, editable y libre de anuncios para Word y Writer.</p>
+          <div class="action-arrow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
           </div>
-        </div>
+        </button>
 
-        <!-- Botón 3: Captura Completa PNG -->
-        <div id="btnPngFull" class="pro-spotlight-card action-card" role="button" tabindex="0">
-          <div class="action-top">
-            <div class="action-icon purple-gradient">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-            </div>
-            <div class="action-meta">
-              <span class="format-pill purple">PNG 2x</span>
-            </div>
+        <!-- Acción 2: Exportar a Word -->
+        <button id="btnDocx" class="action-row" type="button" tabindex="0">
+          <div class="action-icon-box icon-doc">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              <line x1="10" y1="6" x2="16" y2="6"></line>
+              <line x1="10" y1="10" x2="16" y2="10"></line>
+            </svg>
           </div>
-          <div class="action-info">
-            <strong class="action-title">Captura Completa HD</strong>
-            <p class="action-desc">Imagen sin cortes de toda la altura del sitio web en alta definición.</p>
+          <div class="action-meta">
+            <div class="action-headline">
+              <span class="action-name">Exportar a Word</span>
+              <span class="tag-pill">Editable .doc</span>
+            </div>
+            <p class="action-summary">Artículo limpio y formateado, listo para Word o LibreOffice.</p>
           </div>
-        </div>
-
-      </section>
-
-      <!-- 3. CONFIGURACIÓN Y OPTIMIZACIONES (Impeccable UI) -->
-      <section class="pro-spotlight-card config-panel">
-        <div class="panel-header">
-          <span class="imp-label">Motor de Optimización</span>
-          <span class="config-tag">Automático</span>
-        </div>
-
-        <div class="toggle-list">
-          <!-- Toggle 1: Limpieza Inteligente -->
-          <label class="cyber-toggle-row" data-tooltip="Oculta banners de cookies, modales invasivos y barras fijas que estorban la lectura">
-            <div class="toggle-text">
-              <span class="toggle-title">Limpieza DOM Inteligente</span>
-              <span class="toggle-desc">Ocultar banners de cookies, popups y barras fijas</span>
-            </div>
-            <div class="cyber-switch">
-              <input type="checkbox" id="cleanDom" checked>
-              <span class="cyber-slider"></span>
-            </div>
-          </label>
-
-          <!-- Toggle 2: Expandir Scroll -->
-          <label class="cyber-toggle-row" data-tooltip="Despliega cajas y paneles con scroll vertical interno para que nada quede recortado">
-            <div class="toggle-text">
-              <span class="toggle-title">Expandir Contenedores</span>
-              <span class="toggle-desc">Evitar texto recortado en secciones con scroll interno</span>
-            </div>
-            <div class="cyber-switch">
-              <input type="checkbox" id="expandScroll" checked>
-              <span class="cyber-slider"></span>
-            </div>
-          </label>
-
-          <!-- Toggle 3: Alta Fidelidad 2x -->
-          <label class="cyber-toggle-row" data-tooltip="Genera el canvas al doble de resolución nativa para máxima nitidez en texto y gráficos">
-            <div class="toggle-text">
-              <span class="toggle-title">Súper-Muestreo (Retina 2x)</span>
-              <span class="toggle-desc">Gráficos y textos nítidos en alta definición</span>
-            </div>
-            <div class="cyber-switch">
-              <input type="checkbox" id="highQuality" checked>
-              <span class="cyber-slider"></span>
-            </div>
-          </label>
-        </div>
-      </section>
-
-      <!-- 4. BARRA DE PROGRESO FLUIDA (Skill-UL) -->
-      <section id="progressSection" class="progress-section" style="display: none;">
-        <div class="skill-bar-wrapper">
-          <div class="skill-bar-header">
-            <span id="progressLabel" class="progress-label">Procesando captura...</span>
-            <span id="progressPercent" class="skill-bar-percent">0%</span>
+          <div class="action-arrow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
           </div>
-          <div class="skill-bar-track">
-            <div id="progressBar" class="skill-bar-fill" style="width: 0%;"></div>
-          </div>
-        </div>
-      </section>
+        </button>
 
-      <!-- Estado de Operación -->
-      <div id="status" class="status-msg">
-        <span class="status-dot"></span>
-        <span id="statusText">Listo para procesar la página</span>
+        <!-- Acción 3: Captura Completa PNG -->
+        <button id="btnPngFull" class="action-row" type="button" tabindex="0">
+          <div class="action-icon-box icon-png">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+          </div>
+          <div class="action-meta">
+            <div class="action-headline">
+              <span class="action-name">Captura Completa HD</span>
+              <span class="tag-pill">Imagen PNG</span>
+            </div>
+            <p class="action-summary">Captura continua de toda la altura del sitio web en alta resolución.</p>
+          </div>
+          <div class="action-arrow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </button>
+
       </div>
+
+      <!-- 3. PREFERENCIAS DE CAPTURA (PANEL COMPACTO) -->
+      <div class="settings-card">
+        <div class="settings-header">
+          <span class="settings-title">Preferencias de Renderizado</span>
+        </div>
+
+        <div class="settings-list">
+          <label class="setting-item" data-tooltip="Oculta banners de cookies, modales y barras de cabecera fijas que obstruyen el contenido">
+            <span class="setting-label">Filtrar avisos de cookies y barras fijas</span>
+            <span class="ui-switch">
+              <input type="checkbox" id="cleanDom" checked>
+              <span class="ui-switch-track"></span>
+            </span>
+          </label>
+
+          <label class="setting-item" data-tooltip="Despliega cajas y listas internas con scroll para evitar texto cortado">
+            <span class="setting-label">Expandir bloques con scroll interno</span>
+            <span class="ui-switch">
+              <input type="checkbox" id="expandScroll" checked>
+              <span class="ui-switch-track"></span>
+            </span>
+          </label>
+
+          <label class="setting-item" data-tooltip="Duplica la resolución del canvas (2x) para textos y diagramas más nítidos">
+            <span class="setting-label">Alta definición (Súper-muestreo 2x)</span>
+            <span class="ui-switch">
+              <input type="checkbox" id="highQuality" checked>
+              <span class="ui-switch-track"></span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 4. BARRA DE PROGRESO DISCRETA -->
+      <div id="progressSection" class="progress-container" style="display: none;">
+        <div class="progress-info">
+          <span id="progressLabel" class="progress-task">Procesando...</span>
+          <span id="progressPercent" class="progress-val">0%</span>
+        </div>
+        <div class="progress-track">
+          <div id="progressBar" class="progress-bar-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- 5. ESTADO DEL SISTEMA -->
+      <footer class="app-footer">
+        <div id="status" class="status-indicator">
+          <span class="status-dot"></span>
+          <span id="statusText">Listo para procesar</span>
+        </div>
+      </footer>
 
     </main>
 
-    <!-- 5. FOOTER CON MICROMÉTRICAS -->
-    <footer class="bwd-footer">
-      <span>BWD v0.2.0</span>
-      <span class="footer-sep">•</span>
-      <span>Suite Frontend Embellecedor</span>
-    </footer>
-
   </div>
 
-  <!-- Librerías de Producción -->
   <script src="../libs/html2canvas.min.js"></script>
   <script src="../libs/jspdf.umd.min.js"></script>
   <script src="popup.js"></script>

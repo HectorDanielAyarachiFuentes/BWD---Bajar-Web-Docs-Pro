@@ -1,10 +1,30 @@
 /* ==========================================================================
-   BWD PRO — Firefox Extension Popup Stylesheet
-   Integrated with Frontend Embellecedor Suite:
-   - UI Pro Max: Obsidian deeps, beam borders, spotlight cards, frosted glass.
-   - Impeccable UI: 4/8pt mathematical grid, contrast AAA, micro-interactions.
-   - Skill-UL: Shimmering progress bars, fluid badges, spring physics.
+   BWD — Executive & Enterprise Edition Stylesheet
+   Focus: Sobriety, calm luxury, typographic balance, precision UX.
+   Ideal for corporate, office, and professional environments.
    ========================================================================== */
+
+:root {
+  --bg-app: #111217;
+  --bg-surface: #161820;
+  --bg-surface-hover: #1c1f2a;
+  --bg-surface-active: #14161d;
+  
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-focus: #3b82f6;
+
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  --accent-blue: #2563eb;
+  --accent-blue-hover: #1d4ed8;
+  --accent-blue-soft: rgba(37, 99, 235, 0.12);
+
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+}
 
 * {
   box-sizing: border-box;
@@ -14,471 +34,463 @@
 }
 
 body {
-  width: 380px;
-  min-height: 520px;
-  max-height: 600px;
-  background-color: var(--pro-bg-deep, #050508);
-  color: var(--imp-text-primary, #ffffff);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
-  overflow-x: hidden;
-  overflow-y: auto;
+  width: 350px;
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  font-family: var(--font-family);
   user-select: none;
-}
-
-/* Custom Scrollbar */
-body::-webkit-scrollbar {
-  width: 5px;
-}
-body::-webkit-scrollbar-track {
-  background: rgba(5, 5, 8, 0.6);
-}
-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-}
-body::-webkit-scrollbar-thumb:hover {
-  background: var(--pro-accent-cyan, #00f0ff);
-}
-
-.popup-wrapper {
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  z-index: 10;
-}
-
-/* --------------------------------------------------------------------------
-   1. Header Glassmorphism
-   -------------------------------------------------------------------------- */
-.bwd-header {
-  padding: var(--imp-space-3, 12px) var(--imp-space-4, 16px);
-  display: flex;
-  flex-direction: column;
-  gap: var(--imp-space-2, 8px);
-  border-bottom: 1px solid var(--pro-border-subtle, rgba(255, 255, 255, 0.08));
-}
-
-.bwd-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.bwd-logo-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--pro-accent-cyan, #00f0ff), var(--pro-accent-purple, #8b5cf6));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #050508;
-  box-shadow: 0 0 16px rgba(0, 240, 255, 0.4);
-  flex-shrink: 0;
-}
-
-.bwd-titles {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.bwd-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.bwd-title {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  background: linear-gradient(180deg, #ffffff 40%, #94a3b8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.bwd-tagline {
-  font-size: 11px;
-  color: var(--imp-text-secondary, #9aa3b2);
-  margin-top: 1px;
-}
-
-/* Tab Chip */
-.tab-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--imp-border-subtle, rgba(255, 255, 255, 0.08));
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  color: var(--imp-text-secondary, #9aa3b2);
-  width: fit-content;
-  max-width: 100%;
-}
-
-.tab-chip-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--pro-accent-emerald, #10b981);
-  box-shadow: 0 0 8px var(--pro-accent-emerald, #10b981);
-  flex-shrink: 0;
-}
-
-.tab-chip-host {
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 310px;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
 }
 
 /* --------------------------------------------------------------------------
-   2. Main Layout & Action Cards
+   1. Header Corporativo
    -------------------------------------------------------------------------- */
-.bwd-main {
-  padding: var(--imp-space-4, 16px);
-  display: flex;
-  flex-direction: column;
-  gap: var(--imp-space-4, 16px);
+.app-header {
+  padding: 12px 14px;
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.action-grid {
+.brand-group {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 10px;
 }
 
-/* Action Card Styles */
-.action-card {
-  cursor: pointer;
-  border-radius: 12px;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  outline: none;
-}
-
-.action-card:hover {
-  transform: translateY(-2px);
-}
-
-.action-card:active {
-  transform: translateY(0) scale(0.985);
-}
-
-.action-card.is-disabled {
-  opacity: 0.5;
-  pointer-events: none;
-  cursor: not-allowed;
-}
-
-/* Beam card adjustments for popup */
-.pro-beam-card.action-card {
-  padding: 1px;
-  border-radius: 12px;
-}
-
-.action-content {
-  background: #0d0f18 !important;
-  border-radius: 11px !important;
-  padding: 12px 14px !important;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pro-spotlight-card.action-card {
-  padding: 12px 14px;
-  background: rgba(18, 20, 31, 0.65);
-  border: 1px solid var(--imp-border-subtle, rgba(255, 255, 255, 0.08));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pro-spotlight-card.action-card:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow: 0 10px 25px -10px rgba(0, 0, 0, 0.6);
-}
-
-.action-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.action-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+.brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background-color: #1e222e;
+  border: 1px solid var(--border-medium);
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #93c5fd;
   flex-shrink: 0;
 }
 
-.cyan-gradient {
-  background: rgba(0, 240, 255, 0.12);
-  color: var(--pro-accent-cyan, #00f0ff);
-  border: 1px solid rgba(0, 240, 255, 0.25);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
-}
-
-.emerald-gradient {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--pro-accent-emerald, #10b981);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
-}
-
-.purple-gradient {
-  background: rgba(139, 92, 246, 0.12);
-  color: var(--pro-accent-purple, #8b5cf6);
-  border: 1px solid rgba(139, 92, 246, 0.25);
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.15);
-}
-
-.action-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.format-pill {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--imp-text-secondary, #9aa3b2);
-}
-
-.format-pill.emerald {
-  color: #a7f3d0;
-  border-color: rgba(16, 185, 129, 0.25);
-}
-
-.format-pill.purple {
-  color: #ddd6fe;
-  border-color: rgba(139, 92, 246, 0.25);
-}
-
-.action-info {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.action-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.action-desc {
-  font-size: 11px;
-  color: var(--imp-text-secondary, #9aa3b2);
-  line-height: 1.35;
-}
-
-/* --------------------------------------------------------------------------
-   3. Configuration & Optimization Panel
-   -------------------------------------------------------------------------- */
-.config-panel {
-  padding: 12px 14px;
-  background: rgba(14, 16, 26, 0.7);
-  border: 1px solid var(--imp-border-subtle, rgba(255, 255, 255, 0.08));
-  border-radius: 12px;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.config-tag {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--pro-accent-cyan, #00f0ff);
-  background: rgba(0, 240, 255, 0.08);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.toggle-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.cyber-toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  cursor: pointer;
-}
-
-.toggle-text {
+.brand-details {
   display: flex;
   flex-direction: column;
   gap: 2px;
   flex: 1;
 }
 
-.toggle-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #f1f5f9;
+.brand-title-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.toggle-desc {
+.brand-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
+}
+
+.version-badge {
   font-size: 10px;
-  color: var(--imp-text-tertiary, #687282);
+  font-weight: 500;
+  color: var(--text-dim);
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.domain-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.domain-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #10b981;
+  flex-shrink: 0;
+}
+
+.domain-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+/* --------------------------------------------------------------------------
+   2. Main Layout & Action Stack
+   -------------------------------------------------------------------------- */
+.app-main {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  padding-left: 2px;
+}
+
+.action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Action Rows */
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  outline: none;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.15s var(--ease-smooth),
+              border-color 0.15s var(--ease-smooth),
+              transform 0.15s var(--ease-smooth);
+}
+
+.action-row:hover {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-medium);
+  transform: translateY(-1px);
+}
+
+.action-row:active {
+  background-color: var(--bg-surface-active);
+  transform: translateY(0);
+}
+
+.action-row:focus-visible {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+.action-row.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.action-row.is-recommended {
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+.action-row.is-recommended:hover {
+  border-color: rgba(37, 99, 235, 0.5);
+}
+
+/* Icon Boxes */
+.action-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border-subtle);
+}
+
+.icon-pdf {
+  background-color: rgba(37, 99, 235, 0.1);
+  color: #60a5fa;
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+.icon-doc {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.icon-png {
+  background-color: rgba(168, 85, 247, 0.1);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.2);
+}
+
+.action-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.action-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.action-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.action-summary {
+  font-size: 11px;
+  color: var(--text-muted);
   line-height: 1.25;
 }
 
-/* Cyber Switch Styling */
-.cyber-switch {
+.action-arrow {
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  transition: transform 0.15s var(--ease-smooth), color 0.15s var(--ease-smooth);
+}
+
+.action-row:hover .action-arrow {
+  color: var(--text-muted);
+  transform: translateX(2px);
+}
+
+/* Tag Pills */
+.tag-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tag-pill.tag-primary {
+  background-color: var(--accent-blue-soft);
+  border-color: rgba(37, 99, 235, 0.25);
+  color: #93c5fd;
+}
+
+/* --------------------------------------------------------------------------
+   3. Panel de Ajustes / Preferencias (Compacto & Limpio)
+   -------------------------------------------------------------------------- */
+.settings-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.settings-header {
+  margin-bottom: 6px;
+}
+
+.settings-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.setting-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* UI Switch Minimalista (estilo Apple macOS) */
+.ui-switch {
   position: relative;
-  width: 36px;
-  height: 20px;
+  width: 30px;
+  height: 16px;
+  display: inline-block;
   flex-shrink: 0;
 }
 
-.cyber-switch input {
+.ui-switch input {
   opacity: 0;
   width: 0;
   height: 0;
-  position: absolute;
 }
 
-.cyber-slider {
+.ui-switch-track {
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background-color: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 20px;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: #2a2e3a;
+  border-radius: 16px;
+  transition: background-color 0.2s var(--ease-smooth);
 }
 
-.cyber-slider:before {
+.ui-switch-track:before {
   position: absolute;
   content: "";
-  height: 14px;
-  width: 14px;
+  height: 12px;
+  width: 12px;
   left: 2px;
   bottom: 2px;
-  background-color: #94a3b8;
+  background-color: #e2e8f0;
   border-radius: 50%;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.2s var(--ease-smooth);
 }
 
-.cyber-switch input:checked + .cyber-slider {
-  background-color: rgba(0, 240, 255, 0.2);
-  border-color: var(--pro-accent-cyan, #00f0ff);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+.ui-switch input:checked + .ui-switch-track {
+  background-color: var(--accent-blue);
 }
 
-.cyber-switch input:checked + .cyber-slider:before {
-  transform: translateX(16px);
-  background-color: var(--pro-accent-cyan, #00f0ff);
-  box-shadow: 0 0 8px var(--pro-accent-cyan, #00f0ff);
+.ui-switch input:checked + .ui-switch-track:before {
+  transform: translateX(14px);
+  background-color: #ffffff;
 }
 
 /* --------------------------------------------------------------------------
-   4. Progress & Status Engine (Skill-UL)
+   4. Barra de Progreso y Estados
    -------------------------------------------------------------------------- */
-.progress-section {
-  padding: 10px 14px;
-  background: rgba(18, 20, 31, 0.8);
-  border: 1px solid rgba(0, 240, 255, 0.3);
-  border-radius: 10px;
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.1);
-  animation: fadeIn 0.2s ease;
+.progress-container {
+  padding: 8px 10px;
+  background-color: var(--bg-surface);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 6px;
+  animation: fadeIn 0.15s ease;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
+  from { opacity: 0; transform: translateY(-2px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.progress-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #f1f5f9;
-}
-
-.status-msg {
+.progress-info {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
   font-size: 11px;
-  color: var(--imp-text-secondary, #9aa3b2);
-  padding: 6px 10px;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 6px;
-  min-height: 32px;
+  margin-bottom: 5px;
 }
 
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--imp-color-primary, #3b82f6);
-  box-shadow: 0 0 6px var(--imp-color-primary, #3b82f6);
-  flex-shrink: 0;
-  transition: all 0.2s ease;
+.progress-task {
+  color: var(--text-muted);
 }
 
-.status-msg.is-busy .status-dot {
-  background: var(--pro-accent-cyan, #00f0ff);
-  box-shadow: 0 0 8px var(--pro-accent-cyan, #00f0ff);
-  animation: proPulse 1s infinite alternate;
+.progress-val {
+  font-weight: 600;
+  color: #93c5fd;
 }
 
-.status-msg.is-success .status-dot {
-  background: var(--pro-accent-emerald, #10b981);
-  box-shadow: 0 0 8px var(--pro-accent-emerald, #10b981);
+.progress-track {
+  width: 100%;
+  height: 4px;
+  background-color: #1e222d;
+  border-radius: 2px;
+  overflow: hidden;
 }
 
-.status-msg.is-error .status-dot {
-  background: var(--pro-accent-rose, #f43f5e);
-  box-shadow: 0 0 8px var(--pro-accent-rose, #f43f5e);
-}
-
-.status-msg.is-error {
-  color: #fca5a5;
-}
-
-.status-msg.is-success {
-  color: #a7f3d0;
+.progress-bar-fill {
+  height: 100%;
+  background-color: var(--accent-blue);
+  border-radius: 2px;
+  transition: width 0.25s var(--ease-smooth);
 }
 
 /* --------------------------------------------------------------------------
-   5. Footer
+   5. Footer & Estado General
    -------------------------------------------------------------------------- */
-.bwd-footer {
+.app-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: var(--imp-space-2, 8px) var(--imp-space-4, 16px) var(--imp-space-3, 12px);
-  border-top: 1px solid var(--pro-border-subtle, rgba(255, 255, 255, 0.06));
-  font-size: 10px;
-  color: var(--imp-text-tertiary, #687282);
+  padding: 2px 0 0;
 }
 
-.footer-sep {
-  opacity: 0.4;
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #64748b;
+  flex-shrink: 0;
+  transition: background-color 0.2s ease;
+}
+
+.status-indicator.is-busy .status-dot {
+  background-color: var(--accent-blue);
+}
+
+.status-indicator.is-busy {
+  color: #93c5fd;
+}
+
+.status-indicator.is-success .status-dot {
+  background-color: #10b981;
+}
+
+.status-indicator.is-success {
+  color: #34d399;
+}
+
+.status-indicator.is-error .status-dot {
+  background-color: #ef4444;
+}
+
+.status-indicator.is-error {
+  color: #fca5a5;
+}
+
+/* Tooltip Discreto */
+.imp-tooltip {
+  position: fixed;
+  background-color: #1c1f2a;
+  color: #f1f5f9;
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  max-width: 240px;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
