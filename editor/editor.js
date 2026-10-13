@@ -126,6 +126,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           border-radius: 3px !important;
           filter: grayscale(100%) !important;
         }
+
+        /* Eliminar placeholders grises de fondo (LN y otros sitios) */
+        .ln-placeholder, [class*="placeholder"], [class*="--placeholder"] {
+          background-image: none !important;
+          background-color: transparent !important;
+        }
       </style>
     `;
 
@@ -139,6 +145,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     cloneFrame.onload = () => {
       initFrameEvents();
       setTool(activeTool);
+      // Descargar e incrustar imágenes reales en segundo plano
+      inlineAllImages(frameDoc).catch(() => {});
     };
   }
 
@@ -389,8 +397,113 @@ document.addEventListener('DOMContentLoaded', async () => {
   toolRedactBtn.addEventListener('click', () => setTool('redact'));
 
   // --------------------------------------------------------  // --------------------------------------------------------------------------
-  // 6. Motor de Captura Exacta sin Distorsión (Aspect Ratio 100% Fiel)
   // --------------------------------------------------------------------------
+  // 6. Inliner Universal de Imágenes Reales (Bypass de CORS y Eliminación de Cajas Grises)
+  // --------------------------------------------------------------------------
+
+  async function inlineAllImages(doc, onProgress = () => {}) {
+    if (!doc) return;
+
+    // 1. Eliminar background de placeholders (LN u otros portales)
+    let placeholderStyle = doc.getElementById('bwd-no-placeholder-style');
+    if (!placeholderStyle) {
+      placeholderStyle = doc.createElement('style');
+      placeholderStyle.id = 'bwd-no-placeholder-style';
+      placeholderStyle.textContent = `
+        .ln-placeholder, [class*="placeholder"], [class*="--placeholder"] {
+          background-image: none !important;
+          background-color: transparent !important;
+        }
+      `;
+      (doc.head || doc.body).appendChild(placeholderStyle);
+    }
+
+    const images = Array.from(doc.querySelectorAll('img'));
+    if (!images.length) return;
+
+    let processed = 0;
+    const total = images.length;
+
+    await Promise.all(images.map(async (img) => {
+      try {
+        let targetUrl = '';
+
+        // Si la imagen está en un <picture>, buscar primero en los <source>
+        const parentPic = img.closest('picture');
+        if (parentPic) {
+          const sources = parentPic.querySelectorAll('source');
+          for (const s of sources) {
+            const srcset = s.getAttribute('srcset') || s.getAttribute('data-srcset');
+            if (srcset) {
+              const first = srcset.trim().split(/\s*,\s*|\s+/)[0];
+              if (first && first.startsWith('http')) {
+                targetUrl = first;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!targetUrl) {
+          const candidates = [
+            img.currentSrc,
+            img.getAttribute('src'),
+            img.getAttribute('data-src'),
+            img.getAttribute('data-original'),
+            img.getAttribute('data-lazy-src'),
+            img.getAttribute('data-url'),
+            img.srcset ? img.srcset.trim().split(/\s*,\s*|\s+/)[0] : '',
+            img.getAttribute('data-srcset') ? img.getAttribute('data-srcset').trim().split(/\s*,\s*|\s+/)[0] : ''
+          ];
+          targetUrl = candidates.find(c => c && typeof c === 'string' && c.startsWith('http') && !c.includes('placeholder') && !c.includes('data:image/svg'));
+        }
+
+        if (!targetUrl && img.src && img.src.startsWith('http')) {
+          targetUrl = img.src;
+        }
+
+        // Si ya es un data URL válido de imagen, no necesitamos convertir
+        if (img.src && img.src.startsWith('data:image') && !img.src.includes('placeholder')) {
+          return;
+        }
+
+        if (targetUrl && targetUrl.startsWith('http')) {
+          const resp = await fetch(targetUrl);
+          if (resp.ok) {
+            const blob = await resp.blob();
+            await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                if (reader.result && reader.result.startsWith('data:image')) {
+                  img.src = reader.result;
+                  img.removeAttribute('srcset');
+                  img.removeAttribute('data-src');
+                  img.removeAttribute('data-srcset');
+                  img.removeAttribute('loading');
+                  img.setAttribute('loading', 'eager');
+
+                  // Limpiar los <source> del <picture> para que el navegador use forzosamente img.src con data URL
+                  if (parentPic) {
+                    parentPic.querySelectorAll('source').forEach(s => s.remove());
+                  }
+                }
+                resolve();
+              };
+              reader.onerror = resolve;
+              reader.readAsDataURL(blob);
+            });
+          }
+        }
+      } catch (_) {
+        // Fallback no bloqueante si falla una imagen individual
+      } finally {
+        processed++;
+        if (total > 0 && processed % 4 === 0) {
+          onProgress(`Descargando imágenes reales (${processed}/${total})...`, 15 + Math.round((processed / total) * 20));
+        }
+      }
+    }));
+  }
 
   async function captureEditorCanvas(onProgress = () => {}) {
     const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
@@ -398,34 +511,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Desactivar temporalmente cursores de edición y cajas de foco
     frameDoc.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
 
-    // 1. Asegurar que todas las imágenes en el iframe estén resueltas
-    frameDoc.querySelectorAll('img').forEach(img => {
-      const dataSrc = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src') || img.getAttribute('data-url');
-      if (dataSrc && (!img.src || img.src.includes('placeholder') || img.src.startsWith('data:') || img.src.includes('svg'))) {
-        img.src = dataSrc;
-      }
-      const dataSrcset = img.getAttribute('data-srcset');
-      if (dataSrcset) {
-        img.srcset = dataSrcset;
-      }
-      img.removeAttribute('loading');
-      img.setAttribute('loading', 'eager');
-    });
+    onProgress("Descargando e incrustando imágenes reales...", 15);
 
-    onProgress("Verificando carga de imágenes reales...", 15);
+    // 1. Descargar todas las imágenes vía fetch con permisos de extensión y convertirlas a data URLs
+    await inlineAllImages(frameDoc, (msg, pct) => onProgress(msg, pct));
 
-    // 2. Esperar activamente a que las imágenes completen su descarga para evitar cajas grises
-    const pendingImages = Array.from(frameDoc.querySelectorAll('img')).filter(img => img.src && !img.src.startsWith('data:'));
-    if (pendingImages.length > 0) {
-      await Promise.all(pendingImages.map(img => {
-        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-        return new Promise(resolve => {
-          img.addEventListener('load', resolve, { once: true });
-          img.addEventListener('error', resolve, { once: true });
-          setTimeout(resolve, 2000); // 2s timeout máximo para no bloquear
-        });
-      }));
-    }
+    // 2. Breve espera para que el DOM del iframe actualice la vista con las nuevas data URLs
+    await new Promise(r => setTimeout(r, 300));
 
     const targetEl = frameDoc.documentElement || frameDoc.body;
     const docHeight = Math.max(targetEl.scrollHeight, targetEl.offsetHeight, 1000);
