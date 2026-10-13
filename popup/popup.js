@@ -283,38 +283,74 @@ btnPdfVisual.addEventListener('click', async () => {
 });
 
 // ----------------------------------------------------------------------------
-// 4. Exportar a Word (.doc enriquecido / editable)
+// 4. Exportar a Word (.doc enriquecido / editable con esencia visual y dimensiones)
 // ----------------------------------------------------------------------------
 
 btnDocx.addEventListener('click', async () => {
   try {
     setBusy(true);
-    setProgress(30, "Extrayendo cuerpo principal del artículo...", 'busy');
+    setProgress(20, "Capturando diseño visual y dimensiones...", 'busy');
 
+    const [tab] = await getActiveTab();
+
+    // 1. Capturar la vista de pantalla fiel para incrustar el diseño original exacto en Word
+    const visualSnapshotUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
+
+    setProgress(45, "Extrayendo y adaptando estructura editable...", 'busy');
+
+    // 2. Extraer el contenido preservando formularios, botones y tablas (sin borrarlos)
     const extracted = await executeInPage(() => {
       const title = document.title || 'Documento Web';
       const url = window.location.href;
 
-      const mainEl = document.querySelector('article') ||
-                     document.querySelector('main') ||
-                     document.querySelector('[role="main"]') ||
-                     document.body;
+      const bodyClone = document.body.cloneNode(true);
 
-      const clone = mainEl.cloneNode(true);
+      // Eliminar scripts, iframes, noscript y tracking
+      ['script', 'iframe', 'noscript', 'link', 'meta'].forEach(tag => {
+        bodyClone.querySelectorAll(tag).forEach(el => el.remove());
+      });
 
-      const unwanted = ['script', 'style', 'iframe', 'nav', 'footer', 'aside', 'noscript', 'button', 'input', 'svg'];
-      unwanted.forEach(tag => {
-        clone.querySelectorAll(tag).forEach(el => el.remove());
+      // Transformar inputs y textareas en campos editables visuales para Word
+      bodyClone.querySelectorAll('input, textarea').forEach(input => {
+        const placeholder = input.placeholder || input.value || input.getAttribute('aria-label') || 'Campo de entrada';
+        const span = document.createElement('div');
+        span.style.cssText = 'border: 1px solid #cbd5e1; background-color: #f8fafc; padding: 6px 12px; border-radius: 4px; margin: 4px 0; color: #475569; font-size: 10pt; max-width: 340px;';
+        span.textContent = `[ ${placeholder} ]`;
+        input.replaceWith(span);
+      });
+
+      // Transformar botones en bloques estilizados legibles para Word
+      bodyClone.querySelectorAll('button, [role="button"]').forEach(btn => {
+        const text = btn.textContent ? btn.textContent.trim() : 'Botón';
+        if (text) {
+          const div = document.createElement('div');
+          div.style.cssText = 'display: inline-block; background-color: #1877f2; color: #ffffff; padding: 6px 16px; font-weight: bold; border-radius: 4px; margin: 4px 6px 4px 0; font-size: 10pt; text-align: center;';
+          div.textContent = text;
+          btn.replaceWith(div);
+        }
+      });
+
+      // Limpiar SVGs grandes y conservar etiquetas accesibles
+      bodyClone.querySelectorAll('svg').forEach(svg => {
+        const label = svg.getAttribute('aria-label') || svg.getAttribute('title');
+        if (label) {
+          const span = document.createElement('span');
+          span.style.cssText = 'font-weight: bold; color: #1877f2;';
+          span.textContent = ` [${label}] `;
+          svg.replaceWith(span);
+        } else {
+          svg.remove();
+        }
       });
 
       return {
         title: title,
         url: url,
-        html: clone.innerHTML
+        html: bodyClone.innerHTML
       };
     });
 
-    setProgress(70, "Formateando documento para Word...", 'busy');
+    setProgress(75, "Empaquetando documento compatible con Word...", 'busy');
 
     const today = new Date().toLocaleDateString('es-ES', {
       year: 'numeric', month: 'long', day: 'numeric'
@@ -325,26 +361,86 @@ btnDocx.addEventListener('click', async () => {
       <head>
         <meta charset='utf-8'>
         <title>${extracted.title}</title>
+        <!--[if gte mso 9]>
+        <xml>
+         <w:WordDocument>
+          <w:View>Print</w:View>
+          <w:Zoom>100</w:Zoom>
+          <w:DoNotOptimizeForBrowser/>
+         </w:WordDocument>
+        </xml>
+        <![endif]-->
         <style>
-          body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #1e293b; margin: 40px; }
-          h1 { color: #0f172a; font-size: 22pt; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 12px; }
-          h2 { color: #1e40af; font-size: 15pt; margin-top: 24px; }
-          h3 { color: #334155; font-size: 12pt; }
-          p { margin-bottom: 12px; }
-          .bwd-meta { font-size: 9pt; color: #64748b; margin-bottom: 24px; padding: 8px 12px; background: #f8fafc; border-left: 3px solid #2563eb; }
-          img { max-width: 100%; height: auto; margin: 12px 0; border-radius: 4px; }
-          table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 10pt; }
-          th, td { border: 1px solid #cbd5e1; padding: 8px 10px; }
-          th { background-color: #f1f5f9; font-weight: bold; color: #0f172a; }
+          @page {
+            size: 21.0cm 29.7cm; /* A4 */
+            margin: 1.8cm 1.8cm 1.8cm 1.8cm;
+            mso-page-orientation: portrait;
+          }
+          body {
+            font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #1e293b;
+          }
+          h1 { color: #0f172a; font-size: 22pt; margin: 0 0 6px 0; }
+          .bwd-meta {
+            font-size: 9pt;
+            color: #64748b;
+            margin-bottom: 20px;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-left: 3px solid #2563eb;
+          }
+          .visual-box {
+            border: 1px solid #cbd5e1;
+            padding: 10px;
+            background: #ffffff;
+            margin-bottom: 25px;
+          }
+          .visual-tag {
+            font-size: 9pt;
+            font-weight: bold;
+            color: #2563eb;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+          }
+          .visual-img {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #e2e8f0;
+            display: block;
+          }
+          .page-break {
+            page-break-before: always;
+            margin-top: 30px;
+          }
+          table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+          th, td { border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 10pt; }
+          th { background-color: #f1f5f9; font-weight: bold; }
         </style>
       </head>
       <body>
         <h1>${extracted.title}</h1>
         <div class="bwd-meta">
           <strong>Origen:</strong> <a href="${extracted.url}">${extracted.url}</a><br/>
-          <strong>Fecha de exportación:</strong> ${today} — Bajar Web Docs
+          <strong>Fecha de exportación:</strong> ${today} — Generado con BWD Pro
         </div>
-        ${extracted.html}
+
+        <!-- 1. VISTA VISUAL FIEL (PRESERVA LA ESENCIA, COLORES Y DIMENSIONES) -->
+        <div class="visual-box">
+          <div class="visual-tag">Maquetación Visual y Dimensiones Originales</div>
+          <img class="visual-img" src="${visualSnapshotUrl}" alt="${extracted.title}" />
+        </div>
+
+        <!-- 2. CONTENIDO ESTRUCTURADO Y EDITABLE -->
+        <div class="page-break">
+          <h2 style="color: #1e40af; border-bottom: 2px solid #2563eb; padding-bottom: 6px; margin-bottom: 16px;">
+            Contenido Estructurado y Formularios Editables
+          </h2>
+          ${extracted.html}
+        </div>
       </body>
       </html>
     `;
