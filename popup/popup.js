@@ -945,35 +945,102 @@ function initEditorLauncher() {
   btnLaunchEditor.addEventListener('click', async () => {
     try {
       setBusy(true);
-      setProgress(25, "Clonando diseño y estructura de la página...", 'busy');
+      setProgress(15, "Precargando elementos e imágenes originales...", 'busy');
 
       const tab = await getActiveTab();
 
+      // 1. Activar de inmediato todos los IntersectionObserver y scripts lazy de la página original
+      await executeInPage(async () => {
+        const totalH = Math.min(document.body ? document.body.scrollHeight : 0, 12000);
+        const step = window.innerHeight || 800;
+        for (let y = 0; y < totalH; y += step) {
+          window.scrollTo(0, y);
+          await new Promise(r => setTimeout(r, 40));
+        }
+        window.scrollTo(0, 0);
+      });
+
+      setProgress(40, "Extrayendo diseño e imágenes originales...", 'busy');
+
       const cloneData = await executeInPage(() => {
-        // 1. Resolver imágenes lazy-loaded para que no queden como placeholders vacíos
         try {
-          document.querySelectorAll('img').forEach(img => {
-            const realSrc = img.currentSrc || img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src') || img.getAttribute('data-url');
-            if (realSrc && (!img.src || img.src.includes('placeholder') || img.src.startsWith('data:') || img.src.includes('svg'))) {
-              img.src = realSrc;
-            } else if (img.currentSrc && img.currentSrc !== img.src) {
-              img.src = img.currentSrc;
+          // Desenrollar <picture> para que html2canvas y el DOM estándar lo muestren sin fallos
+          document.querySelectorAll('picture').forEach(pic => {
+            const img = pic.querySelector('img');
+            if (img) {
+              const sources = Array.from(pic.querySelectorAll('source'));
+              for (const s of sources) {
+                const srcset = s.getAttribute('srcset') || s.getAttribute('data-srcset');
+                if (srcset) {
+                  const parts = srcset.trim().split(/\s*,\s*|\s+/);
+                  const best = parts[0];
+                  if (best && !best.includes('svg') && !best.includes('placeholder')) {
+                    img.setAttribute('src', best);
+                    img.src = best;
+                    break;
+                  }
+                }
+              }
+              pic.replaceWith(img);
             }
-
-            const realSrcset = img.getAttribute('data-srcset');
-            if (realSrcset) {
-              img.srcset = realSrcset;
-            }
-
-            img.removeAttribute('loading');
-            img.setAttribute('loading', 'eager');
           });
 
-          document.querySelectorAll('picture source').forEach(source => {
-            const dataSrcset = source.getAttribute('data-srcset');
-            if (dataSrcset) {
-              source.srcset = dataSrcset;
+          // Resolver todas las imágenes lazy y placeholders en el DOM real
+          document.querySelectorAll('img').forEach(img => {
+            let realSrc = '';
+            const candidates = [
+              img.getAttribute('data-src'),
+              img.getAttribute('data-original'),
+              img.getAttribute('data-lazy-src'),
+              img.getAttribute('data-url'),
+              img.getAttribute('data-retina'),
+              img.currentSrc,
+              img.getAttribute('src')
+            ];
+
+            for (const c of candidates) {
+              if (c && typeof c === 'string' && !c.includes('data:image/svg') && !c.includes('placeholder')) {
+                realSrc = c;
+                break;
+              }
             }
+
+            if (realSrc) {
+              try {
+                const absUrl = new URL(realSrc, document.baseURI || window.location.href).href;
+                img.setAttribute('src', absUrl);
+                img.src = absUrl;
+              } catch (_) {
+                img.setAttribute('src', realSrc);
+              }
+            }
+
+            // Si la imagen ya está completamente cargada y es mismo origen, convertir a dataURL local
+            if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                if (dataUrl && dataUrl.startsWith('data:image/jpeg')) {
+                  img.setAttribute('src', dataUrl);
+                  img.src = dataUrl;
+                }
+              } catch (_) {
+                // Si está restringida por CORS, permanece la URL absoluta para el inliner del editor
+              }
+            }
+
+            img.removeAttribute('data-src');
+            img.removeAttribute('data-original');
+            img.removeAttribute('data-lazy-src');
+            img.removeAttribute('data-srcset');
+            img.removeAttribute('data-url');
+            img.removeAttribute('srcset');
+            img.removeAttribute('loading');
+            img.setAttribute('loading', 'eager');
           });
         } catch (_) {}
 

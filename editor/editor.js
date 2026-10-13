@@ -71,29 +71,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       cleanHtml = cleanHtml.replace(/<head([^>]*)>/i, `<head$1><base href="${data.baseURI || data.url}">`);
     }
 
-    // Resolver imágenes perezosas en el string HTML para que no queden como placeholders vacíos
-    cleanHtml = cleanHtml.replace(/<img\b([^>]*?)>/gi, (match, attrs) => {
-      let newAttrs = attrs;
-      const dataSrcMatch = attrs.match(/\bdata-src=["']([^"']+)["']/i);
-      if (dataSrcMatch && dataSrcMatch[1]) {
-        if (/\bsrc=["'][^"']*["']/i.test(newAttrs)) {
-          newAttrs = newAttrs.replace(/\bsrc=["'][^"']*["']/i, `src="${dataSrcMatch[1]}"`);
-        } else {
-          newAttrs += ` src="${dataSrcMatch[1]}"`;
-        }
-      }
-      const dataSrcsetMatch = attrs.match(/\bdata-srcset=["']([^"']+)["']/i);
-      if (dataSrcsetMatch && dataSrcsetMatch[1]) {
-        if (/\bsrcset=["'][^"']*["']/i.test(newAttrs)) {
-          newAttrs = newAttrs.replace(/\bsrcset=["'][^"']*["']/i, `srcset="${dataSrcsetMatch[1]}"`);
-        } else {
-          newAttrs += ` srcset="${dataSrcsetMatch[1]}"`;
-        }
-      }
-      newAttrs = newAttrs.replace(/\bloading=["']lazy["']/gi, 'loading="eager"');
-      return `<img ${newAttrs}>`;
-    });
-
     // Estilos del editor inyectados dentro del iframe
     const editorInjectedStyles = `
       <style id="bwd-editor-internal-css">
@@ -159,16 +136,50 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     frameDoc.body.setAttribute('data-bwd-tool', activeTool);
 
-    // Asegurar que las imágenes en el DOM del iframe tengan su URL real cargada
+    // 1. Desenrollar cualquier etiqueta <picture> para que el DOM e html2canvas rendericen el <img> estándar
+    frameDoc.querySelectorAll('picture').forEach(pic => {
+      const img = pic.querySelector('img');
+      if (img) {
+        pic.replaceWith(img);
+      }
+    });
+
+    // 2. Asegurar que las imágenes en el DOM del iframe tengan su URL absoluta real
     frameDoc.querySelectorAll('img').forEach(img => {
-      const dataSrc = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src') || img.getAttribute('data-url');
-      if (dataSrc && (!img.src || img.src.includes('placeholder') || img.src.startsWith('data:') || img.src.includes('svg'))) {
-        img.src = dataSrc;
+      const candidates = [
+        img.getAttribute('data-src'),
+        img.getAttribute('data-original'),
+        img.getAttribute('data-lazy-src'),
+        img.getAttribute('data-url'),
+        img.getAttribute('data-retina'),
+        img.currentSrc,
+        img.getAttribute('src')
+      ];
+
+      let realSrc = '';
+      for (const c of candidates) {
+        if (c && typeof c === 'string' && !c.includes('data:image/svg') && !c.includes('placeholder')) {
+          realSrc = c;
+          break;
+        }
       }
-      const dataSrcset = img.getAttribute('data-srcset');
-      if (dataSrcset) {
-        img.srcset = dataSrcset;
+
+      if (realSrc && !realSrc.startsWith('data:image/jpeg') && !realSrc.startsWith('data:image/png')) {
+        try {
+          const absUrl = new URL(realSrc, frameDoc.baseURI || cloneData?.baseURI || cloneData?.url || window.location.href).href;
+          img.setAttribute('src', absUrl);
+          img.src = absUrl;
+        } catch (_) {
+          img.setAttribute('src', realSrc);
+        }
       }
+
+      img.removeAttribute('data-src');
+      img.removeAttribute('data-original');
+      img.removeAttribute('data-lazy-src');
+      img.removeAttribute('data-srcset');
+      img.removeAttribute('data-url');
+      img.removeAttribute('srcset');
       img.removeAttribute('loading');
       img.setAttribute('loading', 'eager');
     });
@@ -418,6 +429,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       (doc.head || doc.body).appendChild(placeholderStyle);
     }
 
+    // 2. Desenrollar cualquier etiqueta <picture> restante en el iframe
+    doc.querySelectorAll('picture').forEach(pic => {
+      const img = pic.querySelector('img');
+      if (img) pic.replaceWith(img);
+    });
+
     const images = Array.from(doc.querySelectorAll('img'));
     if (!images.length) return;
 
@@ -426,82 +443,90 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await Promise.all(images.map(async (img) => {
       try {
-        let targetUrl = '';
+        // Si YA es una imagen bitmap real en base64 (jpeg, png, webp), no re-descargar
+        if (img.src && (img.src.startsWith('data:image/jpeg') || img.src.startsWith('data:image/png') || img.src.startsWith('data:image/webp'))) {
+          return;
+        }
 
-        // Si la imagen está en un <picture>, buscar primero en los <source>
-        const parentPic = img.closest('picture');
-        if (parentPic) {
-          const sources = parentPic.querySelectorAll('source');
-          for (const s of sources) {
-            const srcset = s.getAttribute('srcset') || s.getAttribute('data-srcset');
-            if (srcset) {
-              const first = srcset.trim().split(/\s*,\s*|\s+/)[0];
-              if (first && first.startsWith('http')) {
-                targetUrl = first;
-                break;
-              }
+        let targetUrl = '';
+        const candidates = [
+          img.getAttribute('data-src'),
+          img.getAttribute('data-original'),
+          img.getAttribute('data-lazy-src'),
+          img.getAttribute('data-url'),
+          img.getAttribute('data-retina'),
+          img.getAttribute('srcset'),
+          img.getAttribute('data-srcset'),
+          img.getAttribute('src'),
+          img.currentSrc
+        ];
+
+        for (const c of candidates) {
+          if (c && typeof c === 'string' && !c.includes('data:image/svg') && !c.includes('placeholder')) {
+            const first = c.trim().split(/\s*,\s*|\s+/)[0];
+            if (first && !first.includes('data:image/svg')) {
+              targetUrl = first;
+              break;
             }
           }
         }
 
-        if (!targetUrl) {
-          const candidates = [
-            img.currentSrc,
-            img.getAttribute('src'),
-            img.getAttribute('data-src'),
-            img.getAttribute('data-original'),
-            img.getAttribute('data-lazy-src'),
-            img.getAttribute('data-url'),
-            img.srcset ? img.srcset.trim().split(/\s*,\s*|\s+/)[0] : '',
-            img.getAttribute('data-srcset') ? img.getAttribute('data-srcset').trim().split(/\s*,\s*|\s+/)[0] : ''
-          ];
-          targetUrl = candidates.find(c => c && typeof c === 'string' && c.startsWith('http') && !c.includes('placeholder') && !c.includes('data:image/svg'));
-        }
-
-        if (!targetUrl && img.src && img.src.startsWith('http')) {
+        if (!targetUrl && img.src && !img.src.includes('data:image/svg')) {
           targetUrl = img.src;
         }
 
-        // Si ya es un data URL válido de imagen, no necesitamos convertir
-        if (img.src && img.src.startsWith('data:image') && !img.src.includes('placeholder')) {
-          return;
-        }
+        if (!targetUrl) return;
 
-        if (targetUrl && targetUrl.startsWith('http')) {
-          const resp = await fetch(targetUrl);
-          if (resp.ok) {
-            const blob = await resp.blob();
-            await new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                if (reader.result && reader.result.startsWith('data:image')) {
-                  img.src = reader.result;
-                  img.removeAttribute('srcset');
-                  img.removeAttribute('data-src');
-                  img.removeAttribute('data-srcset');
-                  img.removeAttribute('loading');
-                  img.setAttribute('loading', 'eager');
+        // Convertir a URL absoluta contra la baseURI o URL del documento clonado
+        let absUrl = targetUrl;
+        try {
+          absUrl = new URL(targetUrl, doc.baseURI || cloneData?.baseURI || cloneData?.url || window.location.href).href;
+        } catch (_) {}
 
-                  // Limpiar los <source> del <picture> para que el navegador use forzosamente img.src con data URL
-                  if (parentPic) {
-                    parentPic.querySelectorAll('source').forEach(s => s.remove());
-                  }
-                }
-                resolve();
-              };
-              reader.onerror = resolve;
-              reader.readAsDataURL(blob);
-            });
-          }
+        if (!absUrl.startsWith('http')) return;
+
+        // Descargar usando fetch privilegiado de la extensión (sin bloqueo CORS)
+        const resp = await fetch(absUrl);
+        if (resp.ok) {
+          const blob = await resp.blob();
+          await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (reader.result && reader.result.startsWith('data:image/')) {
+                img.setAttribute('src', reader.result);
+                img.src = reader.result;
+                img.removeAttribute('srcset');
+                img.removeAttribute('data-src');
+                img.removeAttribute('data-original');
+                img.removeAttribute('data-lazy-src');
+                img.removeAttribute('data-srcset');
+                img.removeAttribute('loading');
+                img.setAttribute('loading', 'eager');
+              }
+              resolve();
+            };
+            reader.onerror = resolve;
+            reader.readAsDataURL(blob);
+          });
         }
       } catch (_) {
-        // Fallback no bloqueante si falla una imagen individual
+        // Silencioso por imagen si falla la red en un asset individual
       } finally {
         processed++;
-        if (total > 0 && processed % 4 === 0) {
-          onProgress(`Descargando imágenes reales (${processed}/${total})...`, 15 + Math.round((processed / total) * 20));
+        if (total > 0 && (processed % 2 === 0 || processed === total)) {
+          onProgress(`Descargando e incrustando imágenes (${processed}/${total})...`, 15 + Math.round((processed / total) * 20));
         }
       }
+    }));
+
+    // Esperar a que todas las imágenes del iframe se decodifiquen antes de renderizar canvas
+    await Promise.all(images.map(img => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise(res => {
+        img.onload = res;
+        img.onerror = res;
+        setTimeout(res, 2000);
+      });
     }));
   }
 
