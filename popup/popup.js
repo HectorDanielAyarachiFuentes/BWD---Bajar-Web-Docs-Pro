@@ -241,9 +241,41 @@ async function executeInPage(func, args = []) {
 async function captureFullPageCanvas({ clean = false, expand = false, onProgress = () => {} } = {}) {
   const tab = await getActiveTab();
 
-  // 1. Des-fijar elementos position: fixed para evitar que se repitan como barras flotantes en cada corte
+  // 0. Asegurar que la página esté en el origen absoluto (0, 0) antes de calcular rectángulos o posiciones
+  await executeInPage(() => {
+    window.scrollTo(0, 0);
+  });
+  await new Promise(r => setTimeout(r, 100));
+
+  // 1. Suprimir barras de scroll y des-fijar elementos sticky/fixed para evitar repeticiones en cortes
   await executeInPage((opts) => {
     window._bwdRestores = [];
+
+    // A. Inyectar regla global de supresión de scrollbars y desactivar smooth scrolling para scroll instantáneo
+    const styleEl = document.createElement('style');
+    styleEl.id = 'bwd-no-scrollbars';
+    styleEl.textContent = `
+      html, body, :root, * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+        scroll-behavior: auto !important;
+      }
+      *::-webkit-scrollbar,
+      html::-webkit-scrollbar,
+      body::-webkit-scrollbar {
+        display: none !important;
+        width: 0px !important;
+        height: 0px !important;
+        background: transparent !important;
+      }
+      *::-webkit-scrollbar-thumb,
+      *::-webkit-scrollbar-track {
+        display: none !important;
+        background: transparent !important;
+      }
+    `;
+    (document.head || document.documentElement).appendChild(styleEl);
+    window._bwdRestores.push({ type: 'style-tag', id: 'bwd-no-scrollbars' });
 
     if (opts.clean) {
       const selectors = [
@@ -257,7 +289,7 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
             const style = window.getComputedStyle(el);
             if (style.position === 'fixed' || style.position === 'sticky' || parseInt(style.zIndex, 10) > 1000) {
               window._bwdRestores.push({ el, prop: 'display', val: el.style.display });
-              el.style.display = 'none';
+              el.style.setProperty('display', 'none', 'important');
             }
           });
         } catch (_) {}
@@ -269,71 +301,101 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
         try {
           const s = window.getComputedStyle(el);
           if (s.overflowY === 'scroll' || s.overflowY === 'auto') {
-            if (el.scrollHeight > el.clientHeight && el.scrollHeight < 15000) {
-              window._bwdRestores.push({ el, prop: 'overflow', val: el.style.overflow });
+            if (el.scrollHeight > el.clientHeight && el.scrollHeight < 25000) {
+              window._bwdRestores.push({ el, prop: 'overflowY', val: el.style.overflowY });
               window._bwdRestores.push({ el, prop: 'maxHeight', val: el.style.maxHeight });
-              el.style.overflow = 'visible';
-              el.style.maxHeight = 'none';
+              window._bwdRestores.push({ el, prop: 'height', val: el.style.height });
+              el.style.setProperty('overflow-y', 'visible', 'important');
+              el.style.setProperty('max-height', 'none', 'important');
+              el.style.setProperty('height', 'auto', 'important');
             }
           }
         } catch (_) {}
       });
     }
 
-    // Identificar barras fijas superiores y cambiar temporalmente a absolute
+    // B. Neutralizar elementos sticky y fixed en toda la página
     document.querySelectorAll('*').forEach(el => {
       try {
         const s = window.getComputedStyle(el);
-        if (s.position === 'fixed' || s.position === 'sticky') {
+        if (s.position === 'sticky') {
+          // Dejar sticky en su posición estática original para que no se duplique al scrollear
+          window._bwdRestores.push({ el, prop: 'position', val: el.style.position });
+          el.style.setProperty('position', 'static', 'important');
+        } else if (s.position === 'fixed') {
           const rect = el.getBoundingClientRect();
-          if (rect.top <= 120 && rect.height > 0) {
+          if (rect.top <= 200 && rect.height > 0) {
+            // Cabecera superior fija: anclarla como absolute en el tope del documento
+            const absTop = rect.top + (window.scrollY || window.pageYOffset || 0);
             window._bwdRestores.push({ el, prop: 'position', val: el.style.position });
-            el.style.position = 'absolute';
+            window._bwdRestores.push({ el, prop: 'top', val: el.style.top });
+            el.style.setProperty('position', 'absolute', 'important');
+            el.style.setProperty('top', `${absTop}px`, 'important');
+          } else {
+            // Elementos fijos flotantes (widgets de chat, banners inferiores): ocultar
+            window._bwdRestores.push({ el, prop: 'display', val: el.style.display });
+            el.style.setProperty('display', 'none', 'important');
           }
+        }
+
+        // Suprimir barras de scroll internas en elementos con scroll horizontal
+        if (s.overflowX === 'scroll' || s.overflowX === 'auto') {
+          window._bwdRestores.push({ el, prop: 'scrollbarWidth', val: el.style.scrollbarWidth });
+          el.style.setProperty('scrollbar-width', 'none', 'important');
         }
       } catch (_) {}
     });
   }, [{ clean, expand }]);
 
   try {
-    // 2. Medir dimensiones del documento en la página
+    // 2. Medir dimensiones completas del documento en la página
     const metrics = await executeInPage(() => {
-      window.scrollTo(0, 0);
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+
+      const vH = window.innerHeight;
+      const vW = window.innerWidth;
       const docEl = document.documentElement;
       const body = document.body;
+
       const scrollH = Math.max(
         body ? body.scrollHeight : 0,
         body ? body.offsetHeight : 0,
-        docEl.clientHeight,
-        docEl.scrollHeight,
-        docEl.offsetHeight
+        docEl ? docEl.clientHeight : 0,
+        docEl ? docEl.scrollHeight : 0,
+        docEl ? docEl.offsetHeight : 0
       );
+
       const scrollW = Math.max(
+        vW,
         body ? body.scrollWidth : 0,
         body ? body.offsetWidth : 0,
-        docEl.clientWidth,
-        docEl.scrollWidth,
-        docEl.offsetWidth
+        docEl ? docEl.clientWidth : 0,
+        docEl ? docEl.scrollWidth : 0,
+        docEl ? docEl.offsetWidth : 0
       );
+
       return {
         title: document.title || 'documento_web',
         width: scrollW,
         height: scrollH,
-        viewportHeight: window.innerHeight,
-        viewportWidth: window.innerWidth,
+        viewportHeight: vH,
+        viewportWidth: vW,
         dpr: window.devicePixelRatio || 1
       };
     });
 
     if (!metrics) throw new Error("No se pudo obtener las métricas de la página.");
 
-    const totalHeight = Math.min(metrics.height, 12000);
+    const totalHeight = Math.min(metrics.height, 16000);
     const viewportH = metrics.viewportHeight;
     const viewportW = metrics.viewportWidth;
     const isSingleScreen = totalHeight <= (viewportH + 25);
 
+    // Si la página cabe exactamente en una pantalla, capturar directamente sin rebanar
     if (isSingleScreen) {
-      onProgress(70, "Capturando diseño original de pantalla única...");
+      onProgress(70, "Capturando diseño de pantalla completa...");
       const captureDataUrl = await captureTabImage(tab, 'png');
       const img = new Image();
       await new Promise((res, rej) => {
@@ -351,40 +413,76 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
       return { canvas: singleCanvas, isSingleScreen: true, metrics };
     }
 
-    // 3. Captura multi-slice
+    // 3. Captura multi-slice con avance real y prevención de duplicados
     onProgress(50, "Capturando secciones de la página...");
     const slices = [];
     let currentY = 0;
     const maxScrollY = Math.max(0, totalHeight - viewportH);
+    let previousScrollY = -1;
 
-    while (currentY < totalHeight) {
+    while (currentY <= maxScrollY) {
       const targetScrollY = Math.min(currentY, maxScrollY);
 
-      await executeInPage((y) => window.scrollTo(0, y), [targetScrollY]);
-      await new Promise(r => setTimeout(r, 150));
+      await executeInPage((y) => {
+        window.scrollTo({ top: y, left: 0, behavior: 'instant' });
+        if (document.documentElement) document.documentElement.scrollTop = y;
+        if (document.body) document.body.scrollTop = y;
+      }, [targetScrollY]);
+      await new Promise(r => setTimeout(r, 220));
 
-      const actualScrollY = await executeInPage(() => window.scrollY || window.pageYOffset || 0);
+      const actualScrollY = await executeInPage(() => {
+        return Math.max(
+          window.scrollY || 0,
+          window.pageYOffset || 0,
+          document.documentElement ? document.documentElement.scrollTop : 0,
+          document.body ? document.body.scrollTop : 0
+        );
+      });
+
+      // Si intentamos avanzar hacia abajo pero el scroll no se movió (límite físico o página fija), detener
+      if (currentY > 0 && actualScrollY <= previousScrollY) {
+        break;
+      }
+
       const sliceUrl = await captureTabImage(tab, 'png');
-
-      const isLast = (currentY + viewportH >= totalHeight) || (targetScrollY >= maxScrollY);
+      const isLast = (currentY >= maxScrollY) || (actualScrollY >= maxScrollY);
 
       slices.push({
         url: sliceUrl,
-        targetY: currentY,
-        actualScrollY: actualScrollY,
-        isLast: isLast
+        actualScrollY: actualScrollY
       });
+
+      previousScrollY = actualScrollY;
 
       if (isLast) break;
 
       currentY += viewportH;
-      if (currentY + viewportH > totalHeight && currentY < totalHeight) {
+      if (currentY > maxScrollY && previousScrollY < maxScrollY) {
         currentY = maxScrollY;
       }
     }
 
-    // Restaurar scroll al inicio
-    await executeInPage(() => window.scrollTo(0, 0));
+    // Restaurar scroll al inicio de forma instantánea
+    await executeInPage(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+    });
+
+    if (slices.length === 1) {
+      const img = new Image();
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = slices[0].url;
+      });
+      const singleCanvas = document.createElement('canvas');
+      singleCanvas.width = img.width;
+      singleCanvas.height = img.height;
+      const ctx = singleCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      return { canvas: singleCanvas, isSingleScreen: true, metrics };
+    }
 
     onProgress(75, "Ensamblando imagen completa sin superposiciones ni duplicados...");
 
@@ -396,19 +494,24 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
       firstImg.src = slices[0].url;
     });
 
-    const scaleX = firstImg.width / viewportW;
     const scaleY = firstImg.height / viewportH;
+    const lastScroll = slices[slices.length - 1].actualScrollY;
+    const totalCssH = lastScroll + viewportH;
+    const masterCanvasHeight = Math.round(totalCssH * scaleY);
 
     const masterCanvas = document.createElement('canvas');
     masterCanvas.width = firstImg.width;
-    masterCanvas.height = Math.round(totalHeight * scaleY);
+    masterCanvas.height = masterCanvasHeight;
     const ctx = masterCanvas.getContext('2d');
 
-    let paintedCssY = 0;
+    // 1. Pintar primer corte completo (0 a viewportH)
+    ctx.drawImage(firstImg, 0, 0);
+    let paintedCssY = viewportH;
 
-    for (let i = 0; i < slices.length; i++) {
+    // 2. Pintar cortes subsecuentes tomando únicamente la porción nueva (delta) al fondo del visor
+    for (let i = 1; i < slices.length; i++) {
       const slice = slices[i];
-      const img = (i === 0) ? firstImg : await (async () => {
+      const img = await (async () => {
         const im = new Image();
         await new Promise((res, rej) => {
           im.onload = res;
@@ -418,30 +521,13 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
         return im;
       })();
 
-      if (i === 0) {
-        // Primer corte: pintar completo desde arriba
-        const sliceCssH = Math.min(viewportH, totalHeight);
-        const sH = Math.round(sliceCssH * scaleY);
-        ctx.drawImage(img, 0, 0, img.width, sH, 0, 0, masterCanvas.width, sH);
-        paintedCssY = sliceCssH;
-      } else if (slice.isLast) {
-        // Último corte: pintar ÚNICAMENTE la porción inferior restante
-        // Esto descarta completamente cualquier elemento superior ya pintado
-        const remainingCssH = totalHeight - paintedCssY;
-        if (remainingCssH > 0) {
-          const sH = Math.round(remainingCssH * scaleY);
-          const sy = Math.max(0, img.height - sH);
-          const dy = Math.round(paintedCssY * scaleY);
-          ctx.drawImage(img, 0, sy, img.width, sH, 0, dy, masterCanvas.width, sH);
-          paintedCssY += remainingCssH;
-        }
-      } else {
-        // Cortes intermedios completos
-        const sliceCssH = viewportH;
-        const sH = Math.round(sliceCssH * scaleY);
+      const newContentCssH = (slice.actualScrollY + viewportH) - paintedCssY;
+      if (newContentCssH > 0) {
+        const newContentCanvasH = Math.round(newContentCssH * scaleY);
+        const sy = Math.max(0, img.height - newContentCanvasH);
         const dy = Math.round(paintedCssY * scaleY);
-        ctx.drawImage(img, 0, 0, img.width, sH, 0, dy, masterCanvas.width, sH);
-        paintedCssY += sliceCssH;
+        ctx.drawImage(img, 0, sy, img.width, newContentCanvasH, 0, dy, img.width, newContentCanvasH);
+        paintedCssY += newContentCssH;
       }
     }
 
@@ -451,11 +537,19 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
     // Restaurar siempre todos los estilos modificados en la página
     try {
       await executeInPage(() => {
+        const noScrollStyle = document.getElementById('bwd-no-scrollbars');
+        if (noScrollStyle) noScrollStyle.remove();
+
         if (window._bwdRestores && Array.isArray(window._bwdRestores)) {
           window._bwdRestores.forEach(item => {
             try {
-              if (item.val) item.el.style[item.prop] = item.val;
-              else item.el.style.removeProperty(item.prop);
+              if (item.type === 'style-tag') {
+                const el = document.getElementById(item.id);
+                if (el) el.remove();
+              } else if (item.el && item.prop) {
+                if (item.val) item.el.style[item.prop] = item.val;
+                else item.el.style.removeProperty(item.prop);
+              }
             } catch (_) {}
           });
           delete window._bwdRestores;
@@ -488,72 +582,36 @@ btnPdfVisual.addEventListener('click', async () => {
       onProgress: (pct, msg) => setProgress(pct, msg, 'busy')
     });
 
-    setProgress(85, "Compilando PDF con proporción nativa y márgenes ejecutivos...", 'busy');
+    setProgress(85, "Compilando PDF continuo en una sola página (sin saltos)...", 'busy');
 
     const { jsPDF } = window.jspdf;
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
 
-    // Detectar automáticamente la orientación original (Horizontal para diseño desktop, Vertical para documentos largos)
-    const isLandscape = canvasWidth >= canvasHeight;
+    // Detectar orientación nativa según dimensiones reales
+    const isLandscape = canvasWidth > canvasHeight;
     const orientation = isLandscape ? 'landscape' : 'portrait';
-    const pageW = isLandscape ? 297 : 210; // A4 mm
-    const pageH = isLandscape ? 210 : 297; // A4 mm
 
-    const margin = 8; // Margen sobrio y elegante de 8mm
-    const usableW = pageW - (margin * 2);
-    const usableH = pageH - (margin * 2);
-
+    // Generar documento en 1 sola página continua con proporción exacta y sin saltos
     const pdf = new jsPDF({
       orientation: orientation,
-      unit: 'mm',
-      format: 'a4'
+      unit: 'px',
+      format: [canvasWidth, canvasHeight],
+      hotfixes: ['px_scaling'],
+      compress: true
     });
 
-    const fitsSinglePage = isSingleScreen || isLandscape;
+    // Preparar canvas con fondo limpio para evitar transparencias oscuras y garantizar nitidez
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = canvasWidth;
+    exportCanvas.height = canvasHeight;
+    const ectx = exportCanvas.getContext('2d');
+    ectx.fillStyle = '#ffffff';
+    ectx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ectx.drawImage(canvas, 0, 0);
 
-    if (fitsSinglePage) {
-      // Renderizado proporcional perfecto en 1 sola página:
-      // Conserva exactamente la proporción de aspecto del sitio original (sin deformar ni cortar)
-      const scale = Math.min(usableW / canvasWidth, usableH / canvasHeight);
-      const renderW = canvasWidth * scale;
-      const renderH = canvasHeight * scale;
-      const posX = margin + (usableW - renderW) / 2;
-      const posY = margin + (usableH - renderH) / 2;
-
-      const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', posX, posY, renderW, renderH);
-
-    } else {
-      // Página larga vertical: Paginación secuencial limpia sin cortar elementos
-      const scale = usableW / canvasWidth;
-      const sliceHeightPx = usableH / scale;
-
-      let currentY = 0;
-      let pageIndex = 0;
-
-      while (currentY < canvasHeight) {
-        if (pageIndex > 0) {
-          pdf.addPage('a4', 'portrait');
-        }
-
-        const currentSliceH = Math.min(sliceHeightPx, canvasHeight - currentY);
-        const pageCanvas = document.createElement('canvas');
-        pageCanvas.width = canvasWidth;
-        pageCanvas.height = currentSliceH;
-
-        const pctx = pageCanvas.getContext('2d');
-        pctx.drawImage(canvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
-
-        const pageDataUrl = pageCanvas.toDataURL('image/png');
-        const renderH = currentSliceH * scale;
-
-        pdf.addImage(pageDataUrl, 'PNG', margin, margin, usableW, renderH);
-
-        currentY += sliceHeightPx;
-        pageIndex++;
-      }
-    }
+    const imgData = exportCanvas.toDataURL('image/jpeg', 0.95);
+    pdf.addImage(imgData, 'JPEG', 0, 0, canvasWidth, canvasHeight, undefined, 'FAST');
 
     const filename = sanitizeFilename(metrics.title || tab.title, 'pdf');
     setProgress(95, "Descargando documento PDF fiel...", 'busy');

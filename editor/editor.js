@@ -659,9 +659,49 @@ document.addEventListener('DOMContentLoaded', async () => {
             clonedDoc.body.style.overflow = 'visible';
             clonedDoc.body.style.height = 'auto';
           }
+
+          // Inyectar regla global para suprimir barras de desplazamiento en la captura
+          const styleEl = clonedDoc.createElement('style');
+          styleEl.textContent = `
+            *, *::before, *::after {
+              scrollbar-width: none !important;
+              -ms-overflow-style: none !important;
+            }
+            *::-webkit-scrollbar,
+            html::-webkit-scrollbar,
+            body::-webkit-scrollbar {
+              display: none !important;
+              width: 0px !important;
+              height: 0px !important;
+              background: transparent !important;
+            }
+            *::-webkit-scrollbar-thumb,
+            *::-webkit-scrollbar-track {
+              display: none !important;
+              background: transparent !important;
+            }
+            html, body {
+              scrollbar-width: none !important;
+              overflow-x: hidden !important;
+            }
+          `;
+          if (clonedDoc.head) clonedDoc.head.appendChild(styleEl);
+
           clonedDoc.querySelectorAll('*').forEach(el => {
             if (el.scrollTop) el.scrollTop = 0;
             if (el.scrollLeft) el.scrollLeft = 0;
+
+            try {
+              if (clonedDoc.defaultView) {
+                const s = clonedDoc.defaultView.getComputedStyle(el);
+                if (s && s.position === 'sticky') {
+                  el.style.setProperty('position', 'static', 'important');
+                }
+                if (s && (s.overflowX === 'scroll' || s.overflowX === 'auto')) {
+                  el.style.setProperty('scrollbar-width', 'none', 'important');
+                }
+              }
+            } catch (_) {}
           });
           clonedDoc.querySelectorAll('input, textarea').forEach(inp => {
             if (inp.value) inp.setAttribute('value', inp.value);
@@ -737,56 +777,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando PDF Fiel...", msg, pct));
 
-      showExportModal("Compilando archivo PDF...", "Aplicando compresión optimizada...", 65);
+      showExportModal("Compilando archivo PDF...", "Generando página continua sin saltos...", 70);
 
       const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
-      const { isDark, bgR, bgG, bgB } = detectPageTheme(frameDoc);
+      const { isDark, bgR, bgG, bgB, bgColor } = detectPageTheme(frameDoc);
 
       const { jsPDF } = window.jspdf;
-      const isLandscape = canvas.width >= canvas.height && (canvas.height <= canvas.width * 0.8);
-      const orientation = isLandscape ? 'landscape' : 'portrait';
-      const pageW = isLandscape ? 297 : 210;
-      const pageH = isLandscape ? 210 : 297;
-      const margin = 8;
-      const usableW = pageW - (margin * 2);
-      const usableH = pageH - (margin * 2);
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
 
+      const isLandscape = canvasWidth > canvasHeight;
+      const orientation = isLandscape ? 'landscape' : 'portrait';
+
+      // Exportar en 1 sola página completa con las dimensiones reales del contenido (sin saltos)
       const pdf = new jsPDF({
         orientation: orientation,
-        unit: 'mm',
-        format: 'a4',
+        unit: 'px',
+        format: [canvasWidth, canvasHeight],
+        hotfixes: ['px_scaling'],
         compress: true
       });
 
-      const slices = sliceCanvasForA4(canvas, (current, total) => {
-        const pct = Math.min(95, 65 + Math.round((current / total) * 25));
-        showExportModal("Compilando archivo PDF...", `Paginando hoja ${current} de ${total}...`, pct);
-      });
+      // Si la página original es tema oscuro, pintar el fondo para evitar bordes o transparencias desentonadas
+      if (isDark) {
+        pdf.setFillColor(bgR, bgG, bgB);
+        pdf.rect(0, 0, canvasWidth, canvasHeight, 'F');
+      }
 
-      slices.forEach((slice, idx) => {
-        if (idx > 0) {
-          pdf.addPage('a4', orientation);
-        }
+      showExportModal("Compilando archivo PDF...", "Aplicando compresión optimizada...", 85);
 
-        // Si la página original es tema oscuro, pintar el fondo para evitar bordes blancos desentonados
-        if (isDark) {
-          pdf.setFillColor(bgR, bgG, bgB);
-          pdf.rect(0, 0, pageW, pageH, 'F');
-        }
+      // Preparar canvas con fondo limpio para preservar nitidez y evitar fondos negros en JPEG
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = canvasWidth;
+      exportCanvas.height = canvasHeight;
+      const ectx = exportCanvas.getContext('2d');
+      ectx.fillStyle = bgColor || (isDark ? `rgb(${bgR},${bgG},${bgB})` : '#ffffff');
+      ectx.fillRect(0, 0, canvasWidth, canvasHeight);
+      ectx.drawImage(canvas, 0, 0);
 
-        if (slice.isSingleScreen) {
-          const scale = Math.min(usableW / slice.canvasWidth, usableH / slice.canvasHeight);
-          const renderW = slice.canvasWidth * scale;
-          const renderH = slice.canvasHeight * scale;
-          const posX = margin + (usableW - renderW) / 2;
-          const posY = margin + (usableH - renderH) / 2;
-          pdf.addImage(slice.dataUrl, 'JPEG', posX, posY, renderW, renderH, undefined, 'FAST');
-        } else {
-          const scale = usableW / slice.canvasWidth;
-          const renderH = slice.canvasHeight * scale;
-          pdf.addImage(slice.dataUrl, 'JPEG', margin, margin, usableW, renderH, undefined, 'FAST');
-        }
-      });
+      const imgData = exportCanvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvasWidth, canvasHeight, undefined, 'FAST');
+
+      showExportModal("Compilando archivo PDF...", "Guardando documento...", 95);
 
       const filename = sanitizeName(cloneData ? cloneData.title : 'documento_editado', 'pdf');
       pdf.save(filename);

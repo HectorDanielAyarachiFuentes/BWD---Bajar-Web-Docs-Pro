@@ -20,7 +20,7 @@ Elevada y estilizada con la suite de diseño **Frontend Embellecedor** (UI Pro M
 
 ## 💎 Características Principales
 
-* **📄 PDF Fiel Multi-Página:** Captura el renderizado real de la pantalla (modo `screen`), preservando fondos, columnas, tipografías y colores exactos sin aplicar los destructivos estilos de impresión del navegador.
+* **📄 PDF Fiel de Página Completa (1 Hoja Continua):** Captura el renderizado real de la pantalla (modo `screen`) en una sola página continua sin saltos ni cortes de layout, preservando fondos, columnas, tipografías y colores exactos sin aplicar los destructivos estilos de impresión del navegador.
 * **📝 Exportar a Word (.docx / .doc):** Extrae el artículo o cuerpo central, remueve automáticamente anuncios, iframes y menús de navegación, formateando un documento limpio con metadatos de origen listo para Microsoft Word y LibreOffice Writer.
 * **🖼️ Captura Completa Retina (2x):** Exporta una imagen PNG nítida de toda la altura del sitio web sin pixelado.
 * **⚡ Motor de Optimización DOM:**
