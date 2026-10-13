@@ -716,7 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return canvas;
   }
 
-  // Motor de rebanado unificado A4 con compresión JPEG 0.85 (Reduce 560MB a 5-8MB)
+  // Motor de rebanado unificado A4 con compresión JPEG 0.90
   function sliceCanvasForA4(canvas, onProgress = () => {}) {
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
@@ -730,12 +730,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       pageCanvas.width = canvasWidth;
       pageCanvas.height = canvasHeight;
       const pctx = pageCanvas.getContext('2d');
+      pctx.fillStyle = '#ffffff';
+      pctx.fillRect(0, 0, canvasWidth, canvasHeight);
       pctx.drawImage(canvas, 0, 0);
 
       return [{
-        dataUrl: pageCanvas.toDataURL('image/jpeg', 0.85),
-        canvasWidth,
-        canvasHeight,
+        dataUrl: pageCanvas.toDataURL('image/jpeg', 0.90),
+        width: canvasWidth,
+        height: canvasHeight,
         isSingleScreen: true
       }];
     }
@@ -752,12 +754,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       pageCanvas.height = currentSliceH;
 
       const pctx = pageCanvas.getContext('2d');
+      pctx.fillStyle = '#ffffff';
+      pctx.fillRect(0, 0, canvasWidth, currentSliceH);
       pctx.drawImage(canvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
 
       slices.push({
-        dataUrl: pageCanvas.toDataURL('image/jpeg', 0.85),
-        canvasWidth,
-        canvasHeight: currentSliceH,
+        dataUrl: pageCanvas.toDataURL('image/jpeg', 0.90),
+        width: canvasWidth,
+        height: currentSliceH,
         sliceHeightPx,
         isSingleScreen: false
       });
@@ -768,6 +772,234 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     return slices;
+  }
+
+  // Motor OpenXML / DOCX Nativo de Alta Fidelidad
+  function makeCrcTable() {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) {
+        c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      }
+      table[n] = c;
+    }
+    return table;
+  }
+  const _crcTable = makeCrcTable();
+
+  function crc32(uint8Array) {
+    let crc = 0 ^ (-1);
+    for (let i = 0; i < uint8Array.length; i++) {
+      crc = (crc >>> 8) ^ _crcTable[(crc ^ uint8Array[i]) & 0xFF];
+    }
+    return (crc ^ (-1)) >>> 0;
+  }
+
+  class SimpleZip {
+    constructor() {
+      this.files = [];
+    }
+    addFile(path, data) {
+      let bytes;
+      if (typeof data === 'string') {
+        bytes = new TextEncoder().encode(data);
+      } else if (data instanceof Uint8Array) {
+        bytes = data;
+      } else if (data instanceof ArrayBuffer) {
+        bytes = new Uint8Array(data);
+      } else {
+        bytes = new Uint8Array(data);
+      }
+      this.files.push({ path, bytes, crc: crc32(bytes) });
+    }
+    build() {
+      const textEncoder = new TextEncoder();
+      const localHeaders = [];
+      const cdHeaders = [];
+      let offset = 0;
+
+      for (const f of this.files) {
+        const nameBytes = textEncoder.encode(f.path);
+        const localH = new Uint8Array(30 + nameBytes.length);
+        const lView = new DataView(localH.buffer);
+        lView.setUint32(0, 0x04034b50, true);
+        lView.setUint16(4, 20, true);
+        lView.setUint16(6, 0, true);
+        lView.setUint16(8, 0, true);
+        lView.setUint16(10, 0, true);
+        lView.setUint16(12, 0, true);
+        lView.setUint32(14, f.crc, true);
+        lView.setUint32(18, f.bytes.length, true);
+        lView.setUint32(22, f.bytes.length, true);
+        lView.setUint16(26, nameBytes.length, true);
+        lView.setUint16(28, 0, true);
+        localH.set(nameBytes, 30);
+
+        const cdH = new Uint8Array(46 + nameBytes.length);
+        const cView = new DataView(cdH.buffer);
+        cView.setUint32(0, 0x02014b50, true);
+        cView.setUint16(4, 20, true);
+        cView.setUint16(6, 20, true);
+        cView.setUint16(8, 0, true);
+        cView.setUint16(10, 0, true);
+        cView.setUint16(12, 0, true);
+        cView.setUint16(14, 0, true);
+        cView.setUint32(16, f.crc, true);
+        cView.setUint32(20, f.bytes.length, true);
+        cView.setUint32(24, f.bytes.length, true);
+        cView.setUint16(28, nameBytes.length, true);
+        cView.setUint16(30, 0, true);
+        cView.setUint16(32, 0, true);
+        cView.setUint16(34, 0, true);
+        cView.setUint16(36, 0, true);
+        cView.setUint32(38, 0, true);
+        cView.setUint32(42, offset, true);
+        cdH.set(nameBytes, 46);
+
+        localHeaders.push(localH, f.bytes);
+        cdHeaders.push(cdH);
+        offset += localH.length + f.bytes.length;
+      }
+
+      const cdOffset = offset;
+      let cdSize = 0;
+      for (const cd of cdHeaders) cdSize += cd.length;
+
+      const eocd = new Uint8Array(22);
+      const eView = new DataView(eocd.buffer);
+      eView.setUint32(0, 0x06054b50, true);
+      eView.setUint16(4, 0, true);
+      eView.setUint16(6, 0, true);
+      eView.setUint16(8, this.files.length, true);
+      eView.setUint16(10, this.files.length, true);
+      eView.setUint32(12, cdSize, true);
+      eView.setUint32(16, cdOffset, true);
+      eView.setUint16(20, 0, true);
+
+      const totalSize = offset + cdSize + 22;
+      const finalZip = new Uint8Array(totalSize);
+      let cur = 0;
+      for (const part of [...localHeaders, ...cdHeaders, eocd]) {
+        finalZip.set(part, cur);
+        cur += part.length;
+      }
+
+      return finalZip;
+    }
+  }
+
+  function buildDocx(slices, isLandscape = false) {
+    const zip = new SimpleZip();
+
+    let relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n`;
+    let bodyXml = '';
+
+    const maxW = isLandscape ? 10234800 : 7102800;
+    const maxH = isLandscape ? 7102800 : 10234800;
+
+    slices.forEach((slice, idx) => {
+      const rId = `rId${idx + 1}`;
+      const imgName = `image${idx + 1}.jpeg`;
+
+      let imgBytes = slice.bytes;
+      if (!imgBytes && slice.dataUrl) {
+        const b64 = slice.dataUrl.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+        const binary = atob(b64);
+        imgBytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          imgBytes[i] = binary.charCodeAt(i);
+        }
+      }
+
+      zip.addFile(`word/media/${imgName}`, imgBytes);
+
+      relsXml += `  <Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${imgName}"/>\n`;
+
+      const scale = Math.min(maxW / slice.width, maxH / slice.height);
+      const widthEmu = Math.round(slice.width * scale);
+      const heightEmu = Math.round(slice.height * scale);
+
+      const pageBreakXml = idx > 0 ? '<w:pageBreakBefore/>' : '';
+
+      bodyXml += `
+      <w:p>
+        <w:pPr>
+          ${pageBreakXml}
+          <w:jc w:val="center"/>
+          <w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>
+        </w:pPr>
+        <w:r>
+          <w:drawing>
+            <wp:inline distT="0" distB="0" distL="0" distR="0">
+              <wp:extent cx="${widthEmu}" cy="${heightEmu}"/>
+              <wp:effectExtent l="0" t="0" r="0" b="0"/>
+              <wp:docPr id="${idx + 1}" name="Página ${idx + 1}"/>
+              <wp:cNvGraphicFramePr>
+                <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
+              </wp:cNvGraphicFramePr>
+              <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                  <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                    <pic:nvPicPr>
+                      <pic:cNvPr id="${idx + 1}" name="${imgName}"/>
+                      <pic:cNvPicPr/>
+                    </pic:nvPicPr>
+                    <pic:blipFill>
+                      <a:blip r:embed="${rId}"/>
+                      <a:stretch><a:fillRect/></a:stretch>
+                    </pic:blipFill>
+                    <pic:spPr>
+                      <a:xfrm>
+                        <a:off x="0" y="0"/>
+                        <a:ext cx="${widthEmu}" cy="${heightEmu}"/>
+                      </a:xfrm>
+                      <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                    </pic:spPr>
+                  </pic:pic>
+                </a:graphicData>
+              </a:graphicData>
+            </wp:inline>
+          </w:drawing>
+        </w:r>
+      </w:p>`;
+    });
+
+    relsXml += `</Relationships>`;
+
+    const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    ${bodyXml}
+    <w:sectPr>
+      <w:pgSz w:w="${isLandscape ? 16838 : 11906}" w:h="${isLandscape ? 11906 : 16838}" w:orient="${isLandscape ? 'landscape' : 'portrait'}"/>
+      <w:pgMar w:top="360" w:right="360" w:bottom="360" w:left="360" w:header="0" w:footer="0" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+    zip.addFile('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="jpeg" ContentType="image/jpeg"/>
+  <Default Extension="jpg" ContentType="image/jpeg"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+
+    zip.addFile('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+
+    zip.addFile('word/_rels/document.xml.rels', relsXml);
+    zip.addFile('word/document.xml', docXml);
+
+    return zip.build();
   }
 
   // A. Descargar PDF Fiel
@@ -835,128 +1067,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // B. Exportar a Word (.doc fiel con arquitectura MHTML compatible con Microsoft Office)
+  // B. Exportar a Word (.docx nativo OpenXML con fidelidad 1:1 idéntica al PDF)
   btnEditorDocx.addEventListener('click', async () => {
     try {
-      showExportModal("Generando documento Word (.doc)...", "Iniciando captura sin distorsión...", 15);
+      showExportModal("Generando documento Word (.docx)...", "Iniciando captura sin distorsión...", 15);
 
       const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando documento Word...", msg, pct));
 
-      showExportModal("Compilando documento Word...", "Empaquetando páginas en formato compatible MHTML...", 65);
+      showExportModal("Compilando documento Word...", "Rebanando páginas en proporción A4...", 65);
 
       const title = (cloneData && cloneData.title) ? cloneData.title : 'Documento Web Editado';
-      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
-      const { isDark, bgColor } = detectPageTheme(frameDoc);
-
       const isLandscape = canvas.width >= canvas.height && (canvas.height <= canvas.width * 0.8);
 
       const slices = sliceCanvasForA4(canvas, (current, total) => {
-        const pct = Math.min(95, 65 + Math.round((current / total) * 25));
+        const pct = Math.min(92, 65 + Math.round((current / total) * 25));
         showExportModal("Compilando documento Word...", `Generando página ${current} de ${total}...`, pct);
       });
 
-      // MHTML (MIME multipart/related) Packaging:
-      // Formato nativo estándar de Microsoft Word para documentos con imágenes incrustadas.
-      // Word no renderiza <img src="data:image/...">; requiere imágenes empaquetadas como partes MIME.
-      const boundary = '----=_NextPart_BWD_OFFICE_DOC_' + Date.now();
-      const mimeImageParts = [];
-      const pageImagesHtml = [];
+      showExportModal("Empaquetando documento Word...", "Generando paquete OpenXML (.docx)...", 94);
+      const docxUint8 = buildDocx(slices, isLandscape);
 
-      slices.forEach((slice, idx) => {
-        const imgFilename = `page_${idx + 1}.jpg`;
-        const rawBase64 = slice.dataUrl.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
-        const chunkedBase64 = (rawBase64.match(/.{1,76}/g) || [rawBase64]).join('\r\n');
-
-        const imgWidth = isLandscape ? '10.5in' : '7.3in';
-        pageImagesHtml.push(`
-          <div class="bwd-word-page" style="${idx > 0 ? 'page-break-before: always; mso-break-type: page-break;' : ''} margin: 0; padding: 0; text-align: center;">
-            <img src="${imgFilename}" alt="Página ${idx + 1}" style="width: ${imgWidth}; max-width: 100%; height: auto; display: block; margin: 0 auto;" />
-          </div>
-        `);
-
-        mimeImageParts.push([
-          `--${boundary}`,
-          'Content-Type: image/jpeg',
-          'Content-Transfer-Encoding: base64',
-          `Content-Location: ${imgFilename}`,
-          '',
-          chunkedBase64,
-          ''
-        ].join('\r\n'));
+      const blob = new Blob([docxUint8], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
-
-      const wordHtmlDoc = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head>
-          <meta charset='utf-8'>
-          <title>${title}</title>
-          <!--[if gte mso 9]>
-          <xml>
-            <w:WordDocument>
-              <w:View>Print</w:View>
-              <w:Zoom>100</w:Zoom>
-              <w:DoNotOptimizeForBrowser/>
-            </w:WordDocument>
-          </xml>
-          <![endif]-->
-          <style>
-            @page WordSection1 {
-              size: ${isLandscape ? '297mm 210mm' : '210mm 297mm'};
-              margin: 8mm 8mm 8mm 8mm;
-              mso-page-orientation: ${isLandscape ? 'landscape' : 'portrait'};
-              mso-header-margin: 0;
-              mso-footer-margin: 0;
-            }
-            div.WordSection1 {
-              page: WordSection1;
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              background-color: ${isDark ? '#050508' : '#ffffff'};
-            }
-            .bwd-word-page {
-              margin: 0;
-              padding: 0;
-              font-size: 0;
-              line-height: 0;
-              text-align: center;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="WordSection1">
-            ${pageImagesHtml.join('\n')}
-          </div>
-        </body>
-        </html>
-      `;
-
-      const mhtmlPayload = [
-        'MIME-Version: 1.0',
-        `Content-Type: multipart/related; boundary="${boundary}"; type="text/html"`,
-        '',
-        `--${boundary}`,
-        'Content-Type: text/html; charset="utf-8"',
-        'Content-Location: http://document/page.html',
-        '',
-        wordHtmlDoc,
-        '',
-        mimeImageParts.join('\r\n'),
-        `--${boundary}--`
-      ].join('\r\n');
-
-      const blob = new Blob([mhtmlPayload], { type: 'application/msword;charset=utf-8' });
-      const filename = sanitizeName(title, 'doc');
+      const filename = sanitizeName(title, 'docx');
 
       triggerDownloadBlob(blob, filename);
 
       hideExportModal();
-      showToast(`¡Documento Word (.doc) guardado fielmente! (${filename})`);
+      showToast(`¡Documento Word (.docx) guardado con éxito! (${filename})`);
       setTool(activeTool);
 
     } catch (err) {
-      console.error("Error al exportar Word:", err);
+      console.error("Error al exportar Word (.docx):", err);
       hideExportModal();
       showToast(`Error al exportar a Word: ${err.message || err}`, true);
       setTool(activeTool);
