@@ -629,234 +629,174 @@ btnPdfVisual.addEventListener('click', async () => {
 });
 
 // ----------------------------------------------------------------------------
-// 4. Exportar a Word (.doc enriquecido / editable con esencia visual y dimensiones)
+// Motor de Rebanado A4 para Documentos Fieles
+// ----------------------------------------------------------------------------
+
+function sliceCanvasForA4(canvas, onProgress = () => {}) {
+  const canvasWidth = canvas.width;
+  const canvasHeight = canvas.height;
+
+  // Relación de aspecto A4 estándar: Ancho útil 194mm, Alto útil 281mm -> Ratio = 281 / 194 ≈ 1.4484
+  const sliceHeightPx = Math.floor(canvasWidth * (281 / 194));
+  const isSingleScreen = (canvasHeight <= (canvasWidth * 1.45));
+
+  if (isSingleScreen) {
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = canvasWidth;
+    pageCanvas.height = canvasHeight;
+    const pctx = pageCanvas.getContext('2d');
+    pctx.fillStyle = '#ffffff';
+    pctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    pctx.drawImage(canvas, 0, 0);
+
+    return [{
+      dataUrl: pageCanvas.toDataURL('image/jpeg', 0.92),
+      canvasWidth,
+      canvasHeight,
+      isSingleScreen: true
+    }];
+  }
+
+  const slices = [];
+  let currentY = 0;
+  let pageIndex = 0;
+  const totalPages = Math.ceil(canvasHeight / sliceHeightPx);
+
+  while (currentY < canvasHeight) {
+    const currentSliceH = Math.min(sliceHeightPx, canvasHeight - currentY);
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = canvasWidth;
+    pageCanvas.height = currentSliceH;
+
+    const pctx = pageCanvas.getContext('2d');
+    pctx.fillStyle = '#ffffff';
+    pctx.fillRect(0, 0, canvasWidth, currentSliceH);
+    pctx.drawImage(canvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
+
+    slices.push({
+      dataUrl: pageCanvas.toDataURL('image/jpeg', 0.92),
+      canvasWidth,
+      canvasHeight: currentSliceH,
+      sliceHeightPx,
+      isSingleScreen: false
+    });
+
+    currentY += sliceHeightPx;
+    pageIndex++;
+    onProgress(pageIndex, totalPages);
+  }
+
+  return slices;
+}
+
+// ----------------------------------------------------------------------------
+// 5. Exportar a Word (.doc fiel con arquitectura MHTML compatible con Office)
 // ----------------------------------------------------------------------------
 
 btnDocx.addEventListener('click', async () => {
   try {
     setBusy(true);
-    setProgress(20, "Capturando diseño visual y dimensiones...", 'busy');
+    setProgress(20, "Preparando página para exportación fiel a Word...", 'busy');
 
+    const clean = cleanDomCheckbox.checked;
+    const expand = expandScrollCheckbox.checked;
     const tab = await getActiveTab();
 
-    // 1. Capturar la vista de pantalla fiel para la portada de Word
-    const visualSnapshotUrl = await captureTabImage(tab, 'png');
-
-    setProgress(45, "Extrayendo contenido estructurado y legible...", 'busy');
-
-    // 2. Extraer ÚNICAMENTE bloques semánticos visibles reales (evita los 300 divs vacíos que causaban 50 páginas)
-    const extracted = await executeInPage(() => {
-      const title = document.title ? document.title.trim() : 'Documento Web';
-      const url = window.location.href;
-
-      function isVisible(el) {
-        if (!el) return false;
-        const style = window.getComputedStyle(el);
-        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
-        const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
-      }
-
-      const container = document.querySelector('article') ||
-                        document.querySelector('[role="article"]') ||
-                        document.querySelector('main') ||
-                        document.querySelector('[role="main"]') ||
-                        document.body;
-
-      const blocks = [];
-      const seenTexts = new Set();
-
-      // Recorrer sólo elementos informativos principales
-      const elements = container.querySelectorAll('h1, h2, h3, h4, p, table, ul, ol, form, blockquote');
-
-      elements.forEach(el => {
-        // Ignorar encabezados de navegación fija, footers repetitivos y anuncios
-        if (el.closest('nav, footer, aside, script, noscript, header, .cookie-banner, #cookie-banner, [role="navigation"]')) {
-          return;
-        }
-
-        if (!isVisible(el)) return;
-
-        const tag = el.tagName.toLowerCase();
-        const text = el.innerText ? el.innerText.trim() : '';
-
-        if (!text && tag !== 'table' && tag !== 'form') return;
-
-        // Evitar duplicaciones provocadas por contenedores anidados
-        if (text && seenTexts.has(text)) return;
-        if (text) seenTexts.add(text);
-
-        if (tag.startsWith('h')) {
-          blocks.push(`<${tag} style="color: #0f172a; margin-top: 14pt; margin-bottom: 4pt; font-size: ${tag === 'h1' ? '18pt' : tag === 'h2' ? '14pt' : '12pt'}; font-weight: bold; mso-line-height-rule: exactly; line-height: 1.2;">${text}</${tag}>`);
-        } else if (tag === 'p') {
-          if (text.length > 3) {
-            blocks.push(`<p style="margin: 0 0 8pt 0; line-height: 1.45; color: #334155;">${text}</p>`);
-          }
-        } else if (tag === 'table') {
-          const cloneTable = el.cloneNode(true);
-          cloneTable.querySelectorAll('*').forEach(t => t.removeAttribute('class'));
-          cloneTable.setAttribute('border', '1');
-          cloneTable.setAttribute('cellpadding', '6');
-          cloneTable.setAttribute('cellspacing', '0');
-          cloneTable.style.cssText = 'border-collapse: collapse; width: 100%; margin: 12pt 0; border: 1pt solid #cbd5e1; font-size: 10pt;';
-          blocks.push(cloneTable.outerHTML);
-        } else if (tag === 'ul' || tag === 'ol') {
-          const items = Array.from(el.querySelectorAll('li'))
-            .map(li => li.innerText ? li.innerText.trim() : '')
-            .filter(t => t.length > 0 && !seenTexts.has(t));
-          if (items.length > 0) {
-            items.forEach(t => seenTexts.add(t));
-            const lis = items.map(t => `<li style="margin-bottom: 3pt; color: #334155;">${t}</li>`).join('');
-            blocks.push(`<${tag} style="margin: 6pt 0 10pt 18pt;">${lis}</${tag}>`);
-          }
-        } else if (tag === 'form') {
-          const inputs = Array.from(el.querySelectorAll('input, select, textarea, button'));
-          if (inputs.length > 0) {
-            let formSummary = '<table style="width: 100%; border-collapse: collapse; background-color: #f8fafc; border: 1pt solid #cbd5e1; margin: 10pt 0;" cellpadding="6">';
-            formSummary += '<tr><td style="background-color: #f1f5f9; font-weight: bold; color: #1e40af; border-bottom: 1pt solid #cbd5e1;" colspan="2">Estructura del Formulario</td></tr>';
-            inputs.forEach(inp => {
-              const label = inp.getAttribute('placeholder') || inp.getAttribute('aria-label') || inp.name || inp.innerText || inp.value;
-              if (label && label.trim()) {
-                formSummary += `<tr><td style="width: 35%; font-weight: bold; color: #475569; border-bottom: 1pt solid #e2e8f0;">${label.trim()}</td><td style="color: #64748b; border-bottom: 1pt solid #e2e8f0; font-family: Consolas, monospace;">[ Campo editable ]</td></tr>`;
-              }
-            });
-            formSummary += '</table>';
-            blocks.push(formSummary);
-          }
-        }
-      });
-
-      return {
-        title: title,
-        url: url,
-        contentHtml: blocks.join('\n')
-      };
+    // 1. Obtener la captura de página completa idéntica a la del PDF fiel
+    const { canvas, isSingleScreen, metrics } = await captureFullPageCanvas({
+      clean,
+      expand,
+      onProgress: (pct, msg) => setProgress(pct, msg, 'busy')
     });
 
-    setProgress(75, "Empaquetando documento fiel para Word (formato MHTML)...", 'busy');
+    setProgress(75, "Compilando páginas de alta fidelidad para Word (MHTML)...", 'busy');
 
-    const today = new Date().toLocaleDateString('es-ES', {
-      year: 'numeric', month: 'long', day: 'numeric'
+    const isLandscape = canvas.width >= canvas.height && (canvas.height <= canvas.width * 0.8);
+    const title = (metrics && metrics.title) || tab.title || 'Documento Web';
+
+    const slices = sliceCanvasForA4(canvas, (current, total) => {
+      const pct = Math.min(95, 75 + Math.round((current / total) * 15));
+      setProgress(pct, `Generando página Word ${current} de ${total}...`, 'busy');
     });
 
-    // 3. Extraer y formatear el base64 para el estándar MIME (RFC 2045: líneas de 76 caracteres)
-    const rawBase64 = visualSnapshotUrl.replace(/^data:image\/[a-z]+;base64,/, '');
-    const chunkedBase64 = (rawBase64.match(/.{1,76}/g) || [rawBase64]).join('\r\n');
+    // 2. MHTML (MIME multipart/related) Packaging:
+    // Estándar nativo compatible con Microsoft Word y LibreOffice.
+    // Incrusta las imágenes de página completa con gráficos, estilos y colores 1:1.
+    const boundary = '----=_NextPart_BWD_OFFICE_DOC_' + Date.now();
+    const mimeImageParts = [];
+    const pageImagesHtml = [];
 
-    // 4. Plantilla HTML interna que referencia el identificador MIME 'snapshot_cover.png'
-    const wordHtmlContent = `
+    const imgWidth = isLandscape ? '10.5in' : '7.3in';
+
+    slices.forEach((slice, idx) => {
+      const imgFilename = `page_${idx + 1}.jpg`;
+      const rawBase64 = slice.dataUrl.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+      const chunkedBase64 = (rawBase64.match(/.{1,76}/g) || [rawBase64]).join('\r\n');
+
+      pageImagesHtml.push(`
+        <div class="bwd-word-page" style="${idx > 0 ? 'page-break-before: always; mso-break-type: page-break;' : ''} margin: 0; padding: 0; font-size: 0; line-height: 0; text-align: center;">
+          <img src="${imgFilename}" alt="Página ${idx + 1}" style="width: ${imgWidth}; max-width: 100%; height: auto; display: block; margin: 0 auto; border: 0;" />
+        </div>
+      `);
+
+      mimeImageParts.push([
+        `--${boundary}`,
+        'Content-Type: image/jpeg',
+        'Content-Transfer-Encoding: base64',
+        `Content-Location: ${imgFilename}`,
+        '',
+        chunkedBase64,
+        ''
+      ].join('\r\n'));
+    });
+
+    const wordHtmlDoc = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
         <meta charset='utf-8'>
-        <title>${extracted.title}</title>
+        <title>${title}</title>
         <!--[if gte mso 9]>
         <xml>
-         <w:WordDocument>
-          <w:View>Print</w:View>
-          <w:Zoom>100</w:Zoom>
-          <w:DoNotOptimizeForBrowser/>
-         </w:WordDocument>
+          <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>100</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+          </w:WordDocument>
         </xml>
         <![endif]-->
         <style>
-          @page Section1 {
-            size: 8.27in 11.69in; /* A4 */
-            margin: 0.6in 0.6in 0.6in 0.6in;
-            mso-header-margin: 0.4in;
-            mso-footer-margin: 0.4in;
-            mso-paper-source: 0;
+          @page WordSection1 {
+            size: ${isLandscape ? '297mm 210mm' : '210mm 297mm'};
+            margin: 8mm 8mm 8mm 8mm;
+            mso-page-orientation: ${isLandscape ? 'landscape' : 'portrait'};
+            mso-header-margin: 0;
+            mso-footer-margin: 0;
           }
-          div.Section1 {
-            page: Section1;
+          div.WordSection1 {
+            page: WordSection1;
           }
           body {
-            font-family: 'Segoe UI', Calibri, Arial, sans-serif;
-            font-size: 11pt;
-            line-height: 1.45;
-            color: #1e293b;
             margin: 0;
             padding: 0;
+            background-color: #ffffff;
           }
-          h1 {
-            color: #0f172a;
-            font-size: 20pt;
-            font-weight: bold;
-            margin: 0 0 8pt 0;
-            line-height: 1.2;
-          }
-          .bwd-card {
-            background-color: #f8fafc;
-            border: 1pt solid #cbd5e1;
-            border-left: 3.5pt solid #2563eb;
-            padding: 8pt 12pt;
-            margin-bottom: 12pt;
-          }
-          .bwd-meta {
-            font-size: 9pt;
-            color: #64748b;
-            margin: 2pt 0;
-          }
-          .visual-box {
-            border: 1pt solid #cbd5e1;
-            padding: 4pt;
-            background: #ffffff;
-            margin-bottom: 14pt;
+          .bwd-word-page {
+            margin: 0;
+            padding: 0;
+            font-size: 0;
+            line-height: 0;
             text-align: center;
-          }
-          .visual-tag {
-            font-size: 8.5pt;
-            font-weight: bold;
-            color: #2563eb;
-            text-transform: uppercase;
-            letter-spacing: 0.5pt;
-            margin-bottom: 4pt;
-            text-align: left;
-          }
-          /* Dimensión exacta calculada para el ancho A4 útil */
-          img.visual-img {
-            width: 6.8in;
-            max-width: 6.8in;
-            height: auto;
-            border: 1pt solid #e2e8f0;
-            display: block;
-            margin: 0 auto;
-          }
-          .page-break {
-            page-break-before: always;
-            margin-top: 14pt;
           }
         </style>
       </head>
       <body>
-        <div class="Section1">
-          <h1>${extracted.title}</h1>
-          <div class="bwd-card">
-            <div class="bwd-meta"><strong>Origen:</strong> <a href="${extracted.url}">${extracted.url}</a></div>
-            <div class="bwd-meta"><strong>Fecha de exportación:</strong> ${today} — Generado con BWD Pro</div>
-          </div>
-
-          <!-- 1. VISTA VISUAL FIEL (VINCULADA AL RECURSO EMBEBIDO EN EL ARCHIVO) -->
-          <div class="visual-box">
-            <div class="visual-tag">Maquetación Visual y Dimensiones Originales</div>
-            <img class="visual-img" src="snapshot_cover.png" alt="${extracted.title}" />
-          </div>
-
-          ${extracted.contentHtml ? `
-          <!-- 2. CONTENIDO ESTRUCTURADO Y FORMULARIOS EDITABLES -->
-          <div class="page-break">
-            <h2 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt; margin-bottom: 10pt; font-size: 15pt;">
-              Contenido Estructurado y Formularios Editables
-            </h2>
-            ${extracted.contentHtml}
-          </div>
-          ` : ''}
+        <div class="WordSection1">
+          ${pageImagesHtml.join('\n')}
         </div>
       </body>
       </html>
     `;
 
-    // 5. Ensamblar documento MIME Multipart/Related (MHTML nativo que Word abre con imágenes intactas)
-    const boundary = '----=_NextPart_01D9_BWD_OFFICE';
     const mhtmlPayload = [
       'MIME-Version: 1.0',
       `Content-Type: multipart/related; boundary="${boundary}"; type="text/html"`,
@@ -865,24 +805,19 @@ btnDocx.addEventListener('click', async () => {
       'Content-Type: text/html; charset="utf-8"',
       'Content-Location: http://document/page.html',
       '',
-      wordHtmlContent,
+      wordHtmlDoc,
       '',
-      `--${boundary}`,
-      'Content-Type: image/png',
-      'Content-Transfer-Encoding: base64',
-      'Content-Location: snapshot_cover.png',
-      '',
-      chunkedBase64,
-      '',
+      mimeImageParts.join('\r\n'),
       `--${boundary}--`
     ].join('\r\n');
 
     const blob = new Blob([mhtmlPayload], { type: 'application/msword;charset=utf-8' });
-    const filename = sanitizeFilename(extracted.title, 'doc');
+    const filename = sanitizeFilename(title, 'doc');
 
+    setProgress(95, "Descargando documento Word fiel...", 'busy');
     await triggerDownload(blob, filename);
 
-    setProgress(100, `¡Documento Word guardado con diseño fiel! (${filename})`, 'success');
+    setProgress(100, `¡Documento Word fiel descargado con éxito! (${filename})`, 'success');
     setBusy(false);
 
   } catch (err) {

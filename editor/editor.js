@@ -918,6 +918,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             .bwd-word-page {
               margin: 0;
               padding: 0;
+              font-size: 0;
+              line-height: 0;
               text-align: center;
             }
           </style>
