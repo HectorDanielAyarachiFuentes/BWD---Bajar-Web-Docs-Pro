@@ -1,4 +1,4 @@
-# BWD Pro — Bajar-Web-Docs (v0.2.0)
+# Webs-Docs (v0.2.0)
 
 Extensión de navegador para Firefox de alta fidelidad visual diseñada para resolver definitivamente los problemas habituales de `Ctrl + P` (pérdida de colores de fondo, layouts rotos, cortes de texto a mitad de bloque y banners invasivos).
 
@@ -14,7 +14,7 @@ Elevada y estilizada con la suite de diseño **Frontend Embellecedor** (UI Pro M
    ```
 2. Haz clic en el botón **"Cargar complemento temporal..."** (*Load Temporary Add-on*).
 3. Selecciona el archivo `manifest.json` ubicado en la raíz de esta carpeta.
-4. ¡Listo! Verás el icono de **BWD Pro** en la barra de herramientas de Firefox con su interfaz obsidian cyberpunk.
+4. ¡Listo! Verás el nuevo icono de **Webs-Docs** en la barra de herramientas de Firefox con su interfaz obsidian cyberpunk.
 
 ---
 
