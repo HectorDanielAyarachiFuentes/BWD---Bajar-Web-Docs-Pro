@@ -351,189 +351,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   toolDeleteBtn.addEventListener('click', () => setTool('delete'));
   toolRedactBtn.addEventListener('click', () => setTool('redact'));
 
-  // --------------------------------------------------------------------------
-  // --------------------------------------------------------------------------
+  // --------------------------------------------------------  // --------------------------------------------------------------------------
   // 6. Motor de Captura Exacta sin Distorsión (Aspect Ratio 100% Fiel)
   // --------------------------------------------------------------------------
 
   async function captureEditorCanvas(onProgress = () => {}) {
     const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
-    const frameWin = cloneFrame.contentWindow;
 
     // Desactivar temporalmente cursores de edición y cajas de foco
     frameDoc.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
 
-    onProgress("Capturando vista con fidelidad visual nativa...", 35);
+    onProgress("Compilando vista fiel con escala Retina 2x...", 45);
 
-    const header = document.querySelector('.editor-header');
-    const guide = document.querySelector('.editor-guide-bar');
-    const workspace = document.querySelector('.editor-workspace');
+    const targetEl = frameDoc.documentElement || frameDoc.body;
 
-    const origHeaderDisplay = header.style.display;
-    const origGuideDisplay = guide.style.display;
-    const origWorkspaceHeight = workspace.style.height;
-
-    // Intentar primero con el motor de captura nativo del compositor (cero distorsión en SVG, imágenes o fuentes)
-    try {
-      if (typeof browser !== 'undefined' && browser.tabs && browser.tabs.captureVisibleTab) {
-        header.style.display = 'none';
-        guide.style.display = 'none';
-        workspace.style.height = '100vh';
-
-        frameWin.scrollTo(0, 0);
-        if (frameDoc.documentElement) frameDoc.documentElement.scrollTop = 0;
-        if (frameDoc.body) frameDoc.body.scrollTop = 0;
-        await new Promise(r => setTimeout(r, 100));
-
-        const totalHeight = Math.max(frameDoc.body.scrollHeight, frameDoc.documentElement.scrollHeight);
-        const viewportH = window.innerHeight;
-
-        if (totalHeight <= viewportH + 25) {
-          // Vista de pantalla única
-          const dataUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
-
-          const img = new Image();
-          await new Promise((res, rej) => {
-            img.onload = res;
-            img.onerror = rej;
-            img.src = dataUrl;
-          });
-
-          const scaleY = img.height / viewportH;
-          const contentH = Math.min(img.height, Math.round(totalHeight * scaleY));
-
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = contentH;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, img.width, contentH, 0, 0, img.width, contentH);
-
-          return canvas;
-        } else {
-          // Vista larga con scroll
-          const slices = [];
-          let currentY = 0;
-          const maxScrollY = Math.max(0, totalHeight - viewportH);
-
-          while (currentY < totalHeight) {
-            const targetScrollY = Math.min(currentY, maxScrollY);
-            frameWin.scrollTo(0, targetScrollY);
-            if (frameDoc.documentElement) frameDoc.documentElement.scrollTop = targetScrollY;
-            if (frameDoc.body) frameDoc.body.scrollTop = targetScrollY;
-            await new Promise(r => setTimeout(r, 120));
-
-            const sliceUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
-            const isLast = (currentY + viewportH >= totalHeight) || (targetScrollY >= maxScrollY);
-
-            slices.push({ url: sliceUrl, targetY: currentY, isLast });
-            if (isLast) break;
-
-            currentY += viewportH;
-            if (currentY + viewportH > totalHeight && currentY < totalHeight) {
-              currentY = maxScrollY;
-            }
-          }
-
-          frameWin.scrollTo(0, 0);
-          if (frameDoc.documentElement) frameDoc.documentElement.scrollTop = 0;
-          if (frameDoc.body) frameDoc.body.scrollTop = 0;
-
-          const firstImg = new Image();
-          await new Promise((res, rej) => {
-            firstImg.onload = res;
-            firstImg.onerror = rej;
-            firstImg.src = slices[0].url;
-          });
-
-          const scaleY = firstImg.height / viewportH;
-          const masterCanvas = document.createElement('canvas');
-          masterCanvas.width = firstImg.width;
-          masterCanvas.height = Math.round(totalHeight * scaleY);
-          const ctx = masterCanvas.getContext('2d');
-
-          let paintedCssY = 0;
-          for (let i = 0; i < slices.length; i++) {
-            const slice = slices[i];
-            const img = (i === 0) ? firstImg : await (async () => {
-              const im = new Image();
-              await new Promise((res, rej) => {
-                im.onload = res;
-                im.onerror = rej;
-                im.src = slice.url;
-              });
-              return im;
-            })();
-
-            if (i === 0) {
-              const sliceCssH = Math.min(viewportH, totalHeight);
-              const sH = Math.round(sliceCssH * scaleY);
-              ctx.drawImage(img, 0, 0, img.width, sH, 0, 0, masterCanvas.width, sH);
-              paintedCssY = sliceCssH;
-            } else if (slice.isLast) {
-              const remainingCssH = totalHeight - paintedCssY;
-              if (remainingCssH > 0) {
-                const sH = Math.round(remainingCssH * scaleY);
-                const sy = Math.max(0, img.height - sH);
-                const dy = Math.round(paintedCssY * scaleY);
-                ctx.drawImage(img, 0, sy, img.width, sH, 0, dy, masterCanvas.width, sH);
-                paintedCssY += remainingCssH;
-              }
-            } else {
-              const sliceCssH = viewportH;
-              const sH = Math.round(sliceCssH * scaleY);
-              const dy = Math.round(paintedCssY * scaleY);
-              ctx.drawImage(img, 0, 0, img.width, sH, 0, dy, masterCanvas.width, sH);
-              paintedCssY += sliceCssH;
-            }
-          }
-
-          return masterCanvas;
-        }
-      } else {
-        throw new Error("browser.tabs.captureVisibleTab no disponible");
-      }
-
-    } catch (nativeErr) {
-      console.warn("Captura del compositor no disponible, ejecutando html2canvas calibrado:", nativeErr);
-
-      // Calibrar SVGs para preservar su aspect-ratio exacto (xMidYMid meet)
-      frameDoc.querySelectorAll('svg').forEach(svg => {
-        if (!svg.getAttribute('preserveAspectRatio')) {
-          svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-        }
-        try {
-          const b = svg.getBoundingClientRect();
-          if (b.width > 0 && b.height > 0) {
-            if (!svg.getAttribute('width')) svg.setAttribute('width', Math.round(b.width));
-            if (!svg.getAttribute('height')) svg.setAttribute('height', Math.round(b.height));
-          }
-        } catch (_) {}
-      });
-
-      const body = frameDoc.body;
-      const docEl = frameDoc.documentElement;
-      const contentW = Math.max(docEl.clientWidth, body.clientWidth);
-      const contentH = Math.max(docEl.scrollHeight, body.scrollHeight);
-
-      return await window.html2canvas(body, {
-        useCORS: true,
-        allowTaint: true,
-        scale: 1, // 1:1 estricto para evitar deformar círculos o iconos
-        width: contentW,
-        height: contentH,
-        windowWidth: contentW, // CRÍTICO: windowWidth == width evita estiramiento horizontal
-        windowHeight: contentH,
-        scrollX: 0,
-        scrollY: 0,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
-    } finally {
-      // Restaurar interfaz del editor pase lo que pase
-      header.style.display = origHeaderDisplay;
-      guide.style.display = origGuideDisplay;
-      workspace.style.height = origWorkspaceHeight;
-    }
+    return await window.html2canvas(targetEl, {
+      useCORS: true,
+      scale: 2,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
   }
 
   // A. Descargar PDF Fiel
@@ -576,7 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         pdf.addImage(canvas.toDataURL('image/png'), 'PNG', posX, posY, renderW, renderH);
 
       } else {
-        // Documento largo: paginación secuencial limpia
+        // Documento largo: paginación secuencial limpia sin aplastar
         const scale = usableW / canvasWidth;
         const sliceHeightPx = usableH / scale;
 
@@ -616,7 +453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       console.error("Error al exportar PDF:", err);
       hideExportModal();
-      showToast("Error al exportar el PDF.");
+      showToast(`Error al exportar el PDF: ${err.message || err}`, true);
       setTool(activeTool);
     }
   });
@@ -726,7 +563,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       console.error("Error al exportar Word:", err);
       hideExportModal();
-      showToast("Error al exportar a Word.");
+      showToast(`Error al exportar a Word: ${err.message || err}`, true);
       setTool(activeTool);
     }
   });
@@ -744,13 +581,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       triggerDownloadUrl(dataUrl, filename);
       hideExportModal();
       showToast(`¡Captura PNG guardada! (${filename})`);
-
       setTool(activeTool);
 
     } catch (err) {
       console.error("Error al exportar PNG:", err);
       hideExportModal();
-      showToast("Error al exportar captura PNG.");
+      showToast(`Error al exportar captura PNG: ${err.message || err}`, true);
       setTool(activeTool);
     }
   });
@@ -797,12 +633,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     exportModal.style.display = 'none';
   }
 
-  function showToast(msg) {
+  function showToast(msg, isError = false) {
     toastMessage.textContent = msg;
+    const toastIcon = toastNotification.querySelector('.toast-icon');
+    if (toastIcon) {
+      toastIcon.textContent = isError ? '✕' : '✓';
+    }
+    if (isError) {
+      toastNotification.style.borderColor = 'rgba(239, 68, 68, 0.6)';
+      toastNotification.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(239, 68, 68, 0.3)';
+    } else {
+      toastNotification.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+      toastNotification.style.boxShadow = '0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(56, 189, 248, 0.2)';
+    }
     toastNotification.style.display = 'flex';
     clearTimeout(toastNotification._timer);
     toastNotification._timer = setTimeout(() => {
       toastNotification.style.display = 'none';
-    }, 2800);
+    }, isError ? 4500 : 2800);
   }
 });
