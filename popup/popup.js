@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * BWD — Executive & Enterprise Edition Controller
- * High reliability, zero-hang capture engine, and native download pipeline.
+ * High-performance, bulletproof in-tab capture engine.
  * ============================================================================
  */
 
@@ -76,7 +76,7 @@ function setBusy(isBusy) {
 }
 
 // ----------------------------------------------------------------------------
-// 2. Descargas Confiables (WebExtension Downloads API)
+// 2. Descargas Confiables
 // ----------------------------------------------------------------------------
 
 async function triggerDownload(blobOrUrl, filename) {
@@ -101,10 +101,9 @@ async function triggerDownload(blobOrUrl, filename) {
       return;
     }
   } catch (err) {
-    console.warn("browser.downloads.download no disponible o denegado, usando fallback:", err);
+    console.warn("browser.downloads.download no disponible, usando fallback:", err);
   }
 
-  // Fallback para entornos donde downloads API no responde
   const a = document.createElement('a');
   a.href = downloadUrl;
   a.download = filename;
@@ -117,7 +116,6 @@ async function triggerDownload(blobOrUrl, filename) {
   }
 }
 
-// Sanitizar nombres de archivo
 function sanitizeFilename(title, ext) {
   const clean = (title || 'documento_web')
     .replace(/[\\/:*?"<>|]/g, '_')
@@ -127,7 +125,7 @@ function sanitizeFilename(title, ext) {
 }
 
 // ----------------------------------------------------------------------------
-// 3. Tab Intelligence
+// 3. Tab Intelligence & Inyección de Scripts
 // ----------------------------------------------------------------------------
 
 async function getActiveTab() {
@@ -155,14 +153,14 @@ async function initTabDetection() {
   }
 }
 
-async function ensureLibInjected(tabId) {
+async function ensureLibsInjected(tabId) {
   try {
     await browser.scripting.executeScript({
       target: { tabId: tabId },
-      files: ['libs/html2canvas.min.js']
+      files: ['libs/html2canvas.min.js', 'libs/jspdf.umd.min.js']
     });
   } catch (err) {
-    console.warn("Aviso al inyectar html2canvas:", err);
+    console.warn("Aviso al inyectar librerías:", err);
   }
 }
 
@@ -173,11 +171,17 @@ async function executeInPage(func, args = []) {
     func: func,
     args: args
   });
-  return results[0]?.result;
+  if (results && results[0]) {
+    if (results[0].error) {
+      throw new Error(results[0].error.message || String(results[0].error));
+    }
+    return results[0].result;
+  }
+  return null;
 }
 
 // ----------------------------------------------------------------------------
-// 4. Captura y Exportación a PDF Fiel (Sin cuelgues, A4 exacto)
+// 4. Captura y Exportación a PDF Fiel (In-Tab Engine A4)
 // ----------------------------------------------------------------------------
 
 btnPdfVisual.addEventListener('click', async () => {
@@ -187,147 +191,179 @@ btnPdfVisual.addEventListener('click', async () => {
 
     const clean = cleanDomCheckbox.checked;
     const expand = expandScrollCheckbox.checked;
-    const scale = highQualityCheckbox.checked ? 2 : 1;
+    const scale = highQualityCheckbox.checked ? 1.5 : 1;
     const tab = await getActiveTab();
 
-    // Inyectar librería gráfica en la página
     setProgress(30, "Inyectando motor gráfico...", 'busy');
-    await ensureLibInjected(tab.id);
+    await ensureLibsInjected(tab.id);
 
-    setProgress(50, "Renderizando lienzo y procesando páginas A4...", 'busy');
+    setProgress(55, "Renderizando lienzo y estructurando páginas A4...", 'busy');
 
-    // Ejecutar captura y segmentación exacta de páginas A4 en la pestaña
+    // Ejecución in-page protegida y optimizada
     const pageResult = await executeInPage(async (opts) => {
-      // 1. Limpieza opcional de elementos molestos
-      if (opts.clean) {
-        const selectors = [
-          'header[style*="fixed"]', 'nav[style*="fixed"]', 'div[style*="fixed"]',
-          '.cookie-banner', '#cookie-banner', '.cookies', '.modal', '.popup',
-          '.ad', '.ads', '.advertisement', '[id*="cookie"]', '[class*="cookie"]',
-          '.fixed-top', '.sticky-top', '.chat-widget', '#onetrust-consent-sdk',
-          '[aria-label*="cookie" i]'
-        ];
-        selectors.forEach(sel => {
-          document.querySelectorAll(sel).forEach(el => {
-            const style = window.getComputedStyle(el);
-            if (style.position === 'fixed' || style.position === 'sticky') {
-              el.setAttribute('data-bwd-hidden', 'true');
-              el.style.display = 'none';
-            }
+      try {
+        // 1. Limpieza de banners y modales
+        if (opts.clean) {
+          const selectors = [
+            'header[style*="fixed"]', 'nav[style*="fixed"]', 'div[style*="fixed"]',
+            '.cookie-banner', '#cookie-banner', '.cookies', '.modal', '.popup',
+            '.ad', '.ads', '.advertisement', '[id*="cookie"]', '[class*="cookie"]',
+            '.fixed-top', '.sticky-top', '.chat-widget', '#onetrust-consent-sdk'
+          ];
+          selectors.forEach(sel => {
+            try {
+              document.querySelectorAll(sel).forEach(el => {
+                const style = window.getComputedStyle(el);
+                if (style.position === 'fixed' || style.position === 'sticky') {
+                  el.setAttribute('data-bwd-hidden', 'true');
+                  el.style.display = 'none';
+                }
+              });
+            } catch (_) {}
           });
-        });
-      }
-
-      // 2. Expansión segura de contenedores (con límite superior para evitar bucles de scroll infinito)
-      if (opts.expand) {
-        document.querySelectorAll('*').forEach(el => {
-          const s = window.getComputedStyle(el);
-          if (s.overflowY === 'scroll' || s.overflowY === 'auto') {
-            if (el.scrollHeight > el.clientHeight && el.scrollHeight < 15000) {
-              el.style.overflow = 'visible';
-              el.style.maxHeight = 'none';
-            }
-          }
-        });
-      }
-
-      window.scrollTo(0, 0);
-
-      if (typeof window.html2canvas !== 'function') {
-        throw new Error("html2canvas no está disponible en la página.");
-      }
-
-      // Límite de seguridad de altura para páginas infinitas (ej. Instagram)
-      const scrollH = Math.min(
-        Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-        25000
-      );
-      const scrollW = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
-
-      const canvas = await window.html2canvas(document.body, {
-        scale: opts.scale,
-        useCORS: true,
-        logging: false,
-        allowTaint: true,
-        windowWidth: scrollW,
-        windowHeight: scrollH
-      });
-
-      // 3. Segmentación matemática exacta en páginas A4
-      // Ratio A4 = 297mm alto / 210mm ancho = 1.4142857
-      const a4Ratio = 297 / 210;
-      const pageCanvasHeight = Math.floor(canvas.width * a4Ratio);
-      const totalPages = Math.min(Math.max(Math.ceil(canvas.height / pageCanvasHeight), 1), 30);
-      const pageSlices = [];
-
-      for (let i = 0; i < totalPages; i++) {
-        const sliceCanvas = document.createElement('canvas');
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = pageCanvasHeight;
-        const ctx = sliceCanvas.getContext('2d');
-
-        // Fondo blanco de hoja de papel
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-
-        const sourceY = i * pageCanvasHeight;
-        const sourceHeight = Math.min(pageCanvasHeight, canvas.height - sourceY);
-
-        if (sourceHeight > 0) {
-          ctx.drawImage(
-            canvas,
-            0, sourceY, canvas.width, sourceHeight,
-            0, 0, canvas.width, sourceHeight
-          );
         }
 
-        pageSlices.push(sliceCanvas.toDataURL('image/jpeg', 0.88));
+        // 2. Expansión de scroll interno
+        if (opts.expand) {
+          document.querySelectorAll('*').forEach(el => {
+            try {
+              const s = window.getComputedStyle(el);
+              if (s.overflowY === 'scroll' || s.overflowY === 'auto') {
+                if (el.scrollHeight > el.clientHeight && el.scrollHeight < 15000) {
+                  el.style.overflow = 'visible';
+                  el.style.maxHeight = 'none';
+                }
+              }
+            } catch (_) {}
+          });
+        }
+
+        window.scrollTo(0, 0);
+
+        const html2canvasFn = window.html2canvas || globalThis.html2canvas;
+        if (typeof html2canvasFn !== 'function') {
+          return { success: false, error: "Motor gráfico html2canvas no disponible en la página." };
+        }
+
+        const jsPDFClass = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+        if (!jsPDFClass) {
+          return { success: false, error: "Motor PDF jsPDF no disponible en la página." };
+        }
+
+        const scrollH = Math.min(
+          Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+          20000
+        );
+        const scrollW = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+
+        // Renderizar a Canvas sin contaminar (allowTaint: false)
+        const canvas = await html2canvasFn(document.body, {
+          scale: opts.scale,
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: scrollW,
+          windowHeight: Math.min(scrollH, 12000),
+          ignoreElements: (el) => {
+            return el.tagName === 'IFRAME' || el.tagName === 'SCRIPT' || el.tagName === 'NOSCRIPT';
+          }
+        });
+
+        if (!canvas || canvas.width === 0 || canvas.height === 0) {
+          return { success: false, error: "El lienzo generado está vacío." };
+        }
+
+        // Segmentación exacta A4 (297 / 210 = 1.414)
+        const a4Ratio = 297 / 210;
+        const pageCanvasHeight = Math.floor(canvas.width * a4Ratio);
+        const totalPages = Math.min(Math.max(Math.ceil(canvas.height / pageCanvasHeight), 1), 25);
+
+        const doc = new jsPDFClass({
+          orientation: 'p',
+          unit: 'mm',
+          format: 'a4',
+          compress: true
+        });
+
+        for (let i = 0; i < totalPages; i++) {
+          if (i > 0) doc.addPage('a4', 'p');
+
+          const sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = pageCanvasHeight;
+          const ctx = sliceCanvas.getContext('2d');
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+
+          const sourceY = i * pageCanvasHeight;
+          const sourceHeight = Math.min(pageCanvasHeight, canvas.height - sourceY);
+
+          if (sourceHeight > 0) {
+            ctx.drawImage(
+              canvas,
+              0, sourceY, canvas.width, sourceHeight,
+              0, 0, canvas.width, sourceHeight
+            );
+          }
+
+          const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.88);
+          doc.addImage(sliceData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+        }
+
+        // Restaurar elementos ocultos
+        document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
+          el.style.removeProperty('display');
+          el.removeAttribute('data-bwd-hidden');
+        });
+
+        const pdfBlob = doc.output('blob');
+        const blobUrl = URL.createObjectURL(pdfBlob);
+
+        const safeTitle = (document.title || 'documento_web')
+          .replace(/[\\/:*?"<>|]/g, '_')
+          .replace(/\s+/g, '_')
+          .substring(0, 50);
+        const filename = `${safeTitle}_${Date.now().toString().slice(-4)}.pdf`;
+
+        // Disparar descarga directa en la página
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        return {
+          success: true,
+          title: document.title || 'documento_web',
+          filename: filename,
+          blobUrl: blobUrl,
+          totalPages: totalPages
+        };
+
+      } catch (innerErr) {
+        return {
+          success: false,
+          error: innerErr.message || String(innerErr)
+        };
       }
-
-      // Restaurar elementos ocultos
-      document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
-        el.style.removeProperty('display');
-        el.removeAttribute('data-bwd-hidden');
-      });
-
-      return {
-        title: document.title || 'documento_web',
-        totalPages: totalPages,
-        pages: pageSlices
-      };
     }, [{ clean, expand, scale }]);
 
-    if (!pageResult || !pageResult.pages || pageResult.pages.length === 0) {
-      throw new Error("No se pudo obtener el renderizado de la página.");
+    if (!pageResult) {
+      throw new Error("No se recibió respuesta del script inyectado en la página.");
     }
 
-    setProgress(75, `Ensamblando ${pageResult.totalPages} página(s) en PDF...`, 'busy');
-
-    // 4. Ensamblado directo con jsPDF (sin callbacks ni bucles pesados)
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-      orientation: 'p',
-      unit: 'mm',
-      format: 'a4',
-      compress: true
-    });
-
-    for (let i = 0; i < pageResult.pages.length; i++) {
-      if (i > 0) {
-        doc.addPage('a4', 'p');
-      }
-      doc.addImage(pageResult.pages[i], 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-      const pct = 75 + Math.round(((i + 1) / pageResult.pages.length) * 20);
-      setProgress(pct, `Compaginando página ${i + 1} de ${pageResult.pages.length}...`, 'busy');
+    if (!pageResult.success) {
+      throw new Error(pageResult.error || "No se pudo obtener el renderizado de la página.");
     }
 
-    setProgress(96, "Generando descarga del archivo...", 'busy');
+    setProgress(90, "Descargando documento PDF...", 'busy');
+    await triggerDownload(pageResult.blobUrl, pageResult.filename);
 
-    const pdfBlob = doc.output('blob');
-    const filename = sanitizeFilename(pageResult.title, 'pdf');
-    await triggerDownload(pdfBlob, filename);
-
-    setProgress(100, `¡PDF fiel guardado! (${pageResult.totalPages} pág.)`, 'success');
+    setProgress(100, `¡PDF fiel descargado! (${pageResult.totalPages} pág.)`, 'success');
     setBusy(false);
 
   } catch (err) {
@@ -338,7 +374,7 @@ btnPdfVisual.addEventListener('click', async () => {
 });
 
 // ----------------------------------------------------------------------------
-// 5. Exportar a Word (.doc enriquecido / editable)
+// 5. Exportar a Word (.doc)
 // ----------------------------------------------------------------------------
 
 btnDocx.addEventListener('click', async () => {
@@ -420,7 +456,7 @@ btnDocx.addEventListener('click', async () => {
 });
 
 // ----------------------------------------------------------------------------
-// 6. Captura Completa PNG Retina
+// 6. Captura Completa PNG
 // ----------------------------------------------------------------------------
 
 btnPngFull.addEventListener('click', async () => {
@@ -428,46 +464,85 @@ btnPngFull.addEventListener('click', async () => {
     setBusy(true);
     setProgress(20, "Preparando captura continua...", 'busy');
 
-    const scale = highQualityCheckbox.checked ? 2 : 1;
+    const scale = highQualityCheckbox.checked ? 1.5 : 1;
     const tab = await getActiveTab();
 
-    await ensureLibInjected(tab.id);
+    await ensureLibsInjected(tab.id);
 
     setProgress(50, "Renderizando screenshot de página completa...", 'busy');
 
-    const captureData = await executeInPage(async (renderScale) => {
-      window.scrollTo(0, 0);
-      if (typeof window.html2canvas !== 'function') {
-        throw new Error("html2canvas no está cargado.");
+    const captureResult = await executeInPage(async (opts) => {
+      try {
+        window.scrollTo(0, 0);
+        const html2canvasFn = window.html2canvas || globalThis.html2canvas;
+        if (typeof html2canvasFn !== 'function') {
+          return { success: false, error: "html2canvas no está cargado." };
+        }
+
+        const scrollH = Math.min(
+          Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+          20000
+        );
+        const scrollW = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+
+        const canvas = await html2canvasFn(document.body, {
+          scale: opts.scale,
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          windowWidth: scrollW,
+          windowHeight: Math.min(scrollH, 12000),
+          ignoreElements: (el) => {
+            return el.tagName === 'IFRAME' || el.tagName === 'SCRIPT' || el.tagName === 'NOSCRIPT';
+          }
+        });
+
+        return new Promise((resolve) => {
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              resolve({ success: false, error: "No se pudo generar la imagen del lienzo." });
+              return;
+            }
+            const blobUrl = URL.createObjectURL(blob);
+            const safeTitle = (document.title || 'captura_web')
+              .replace(/[\\/:*?"<>|]/g, '_')
+              .replace(/\s+/g, '_')
+              .substring(0, 50);
+            const filename = `${safeTitle}_${Date.now().toString().slice(-4)}.png`;
+
+            // Descarga directa en la página
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            resolve({
+              success: true,
+              filename: filename,
+              blobUrl: blobUrl
+            });
+          }, 'image/png');
+        });
+
+      } catch (err) {
+        return { success: false, error: err.message || String(err) };
       }
+    }, [{ scale }]);
 
-      const scrollH = Math.min(
-        Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-        25000
-      );
-      const scrollW = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+    if (!captureResult) {
+      throw new Error("No se recibió respuesta de captura de la página.");
+    }
 
-      const canvas = await window.html2canvas(document.body, {
-        scale: renderScale,
-        useCORS: true,
-        logging: false,
-        allowTaint: true,
-        windowWidth: scrollW,
-        windowHeight: scrollH
-      });
+    if (!captureResult.success) {
+      throw new Error(captureResult.error || "Error al capturar la imagen.");
+    }
 
-      return {
-        title: document.title || 'captura_web',
-        dataUrl: canvas.toDataURL('image/png')
-      };
-    }, [scale]);
+    setProgress(90, "Descargando imagen PNG...", 'busy');
+    await triggerDownload(captureResult.blobUrl, captureResult.filename);
 
-    setProgress(85, "Descargando imagen PNG...", 'busy');
-
-    const filename = sanitizeFilename(captureData.title, 'png');
-    await triggerDownload(captureData.dataUrl, filename);
-
-    setProgress(100, `¡Captura PNG guardada! (${filename})`, 'success');
+    setProgress(100, `¡Captura PNG guardada! (${captureResult.filename})`, 'success');
     setBusy(false);
 
   } catch (err) {
