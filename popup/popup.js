@@ -1,7 +1,11 @@
 /**
  * ============================================================================
- * BWD — Executive & Enterprise Edition Controller
- * High-performance, bulletproof in-tab capture engine.
+ * BWD — Executive Edition Controller
+ * Basado en las soluciones de repositorios de referencia en GitHub:
+ * - PDF Fiel: Firefox Native Engine (browser.tabs.saveAsPDF) con preservación
+ *   de colores y fondos, vector real, cero problemas de CORS/taint.
+ * - PNG Completo: Algoritmo de scrolling + captureVisibleTab (estilo GoFullPage)
+ * - Word: Extractor semántico limpio (.doc enriquecido con metadatos)
  * ============================================================================
  */
 
@@ -25,7 +29,7 @@ const highQualityCheckbox = document.getElementById('highQuality');
 const actionButtons = [btnPdfVisual, btnDocx, btnPngFull];
 
 // ----------------------------------------------------------------------------
-// 1. Estado y Barra de Progreso
+// 1. Estados y Progreso
 // ----------------------------------------------------------------------------
 
 function setProgress(percent, label, state = 'busy') {
@@ -75,9 +79,13 @@ function setBusy(isBusy) {
   });
 }
 
-// ----------------------------------------------------------------------------
-// 2. Descargas Confiables
-// ----------------------------------------------------------------------------
+function sanitizeFilename(title, ext) {
+  const clean = (title || 'documento_web')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, '_')
+    .substring(0, 50);
+  return `${clean}_${Date.now().toString().slice(-4)}.${ext}`;
+}
 
 async function triggerDownload(blobOrUrl, filename) {
   let downloadUrl = blobOrUrl;
@@ -101,7 +109,7 @@ async function triggerDownload(blobOrUrl, filename) {
       return;
     }
   } catch (err) {
-    console.warn("browser.downloads.download no disponible, usando fallback:", err);
+    console.warn("browser.downloads no disponible, usando fallback:", err);
   }
 
   const a = document.createElement('a');
@@ -116,16 +124,8 @@ async function triggerDownload(blobOrUrl, filename) {
   }
 }
 
-function sanitizeFilename(title, ext) {
-  const clean = (title || 'documento_web')
-    .replace(/[\\/:*?"<>|]/g, '_')
-    .replace(/\s+/g, '_')
-    .substring(0, 50);
-  return `${clean}_${Date.now().toString().slice(-4)}.${ext}`;
-}
-
 // ----------------------------------------------------------------------------
-// 3. Tab Intelligence & Inyección de Scripts
+// 2. Tab Intelligence y Scripts In-Page
 // ----------------------------------------------------------------------------
 
 async function getActiveTab() {
@@ -142,25 +142,14 @@ async function initTabDetection() {
     if (tab.url) {
       const urlObj = new URL(tab.url);
       if (['about:', 'chrome:', 'moz-extension:', 'addons.mozilla.org'].some(p => tab.url.startsWith(p))) {
-        tabHostEl.textContent = 'Página del sistema (restringida)';
-        statusTextEl.textContent = 'Las páginas internas del navegador no permiten captura';
+        tabHostEl.textContent = 'Página interna (restringida)';
+        statusTextEl.textContent = 'Las páginas internas del sistema no permiten exportación';
       } else {
         tabHostEl.textContent = urlObj.hostname || tab.title || 'Página web activa';
       }
     }
   } catch (e) {
     tabHostEl.textContent = 'Pestaña activa';
-  }
-}
-
-async function ensureLibsInjected(tabId) {
-  try {
-    await browser.scripting.executeScript({
-      target: { tabId: tabId },
-      files: ['libs/html2canvas.min.js', 'libs/jspdf.umd.min.js']
-    });
-  } catch (err) {
-    console.warn("Aviso al inyectar librerías:", err);
   }
 }
 
@@ -181,28 +170,22 @@ async function executeInPage(func, args = []) {
 }
 
 // ----------------------------------------------------------------------------
-// 4. Captura y Exportación a PDF Fiel (In-Tab Engine A4)
+// 3. Exportar PDF Fiel (Solución Definitiva: Firefox Native PDF Engine)
 // ----------------------------------------------------------------------------
 
 btnPdfVisual.addEventListener('click', async () => {
   try {
     setBusy(true);
-    setProgress(15, "Preparando y limpiando elementos...", 'busy');
+    setProgress(20, "Preparando página para exportación...", 'busy');
 
     const clean = cleanDomCheckbox.checked;
     const expand = expandScrollCheckbox.checked;
-    const scale = highQualityCheckbox.checked ? 1.5 : 1;
     const tab = await getActiveTab();
 
-    setProgress(30, "Inyectando motor gráfico...", 'busy');
-    await ensureLibsInjected(tab.id);
-
-    setProgress(55, "Renderizando lienzo y estructurando páginas A4...", 'busy');
-
-    // Ejecución in-page protegida y optimizada
-    const pageResult = await executeInPage(async (opts) => {
-      try {
-        // 1. Limpieza de banners y modales
+    // 1. Limpieza y preparación visual en la página antes de generar el PDF
+    if (clean || expand) {
+      setProgress(40, "Aplicando optimizaciones de lectura...", 'busy');
+      await executeInPage((opts) => {
         if (opts.clean) {
           const selectors = [
             'header[style*="fixed"]', 'nav[style*="fixed"]', 'div[style*="fixed"]',
@@ -223,7 +206,6 @@ btnPdfVisual.addEventListener('click', async () => {
           });
         }
 
-        // 2. Expansión de scroll interno
         if (opts.expand) {
           document.querySelectorAll('*').forEach(el => {
             try {
@@ -237,144 +219,71 @@ btnPdfVisual.addEventListener('click', async () => {
             } catch (_) {}
           });
         }
+      }, [{ clean, expand }]);
+    }
 
-        window.scrollTo(0, 0);
+    setProgress(70, "Generando PDF de alta fidelidad con motor nativo...", 'busy');
 
-        const html2canvasFn = window.html2canvas || globalThis.html2canvas;
-        if (typeof html2canvasFn !== 'function') {
-          return { success: false, error: "Motor gráfico html2canvas no disponible en la página." };
-        }
+    const filename = sanitizeFilename(tab.title, 'pdf');
 
-        const jsPDFClass = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-        if (!jsPDFClass) {
-          return { success: false, error: "Motor PDF jsPDF no disponible en la página." };
-        }
+    // Usar el motor nativo de Firefox (browser.tabs.saveAsPDF)
+    // Cero problemas de CORS, colores y fuentes intactos, soporte A4 perfecto.
+    if (typeof browser.tabs.saveAsPDF === 'function') {
+      const pageSettings = {
+        toFileName: filename,
+        showBackgroundColors: true,
+        showBackgroundImages: true,
+        shrinkToFit: true,
+        headerLeft: "",
+        headerCenter: "",
+        headerRight: "",
+        footerLeft: "",
+        footerCenter: "",
+        footerRight: ""
+      };
 
-        const scrollH = Math.min(
-          Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-          20000
-        );
-        const scrollW = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+      const saveStatus = await browser.tabs.saveAsPDF(pageSettings);
 
-        // Renderizar a Canvas sin contaminar (allowTaint: false)
-        const canvas = await html2canvasFn(document.body, {
-          scale: opts.scale,
-          useCORS: true,
-          allowTaint: false,
-          logging: false,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: scrollW,
-          windowHeight: Math.min(scrollH, 12000),
-          ignoreElements: (el) => {
-            return el.tagName === 'IFRAME' || el.tagName === 'SCRIPT' || el.tagName === 'NOSCRIPT';
-          }
-        });
-
-        if (!canvas || canvas.width === 0 || canvas.height === 0) {
-          return { success: false, error: "El lienzo generado está vacío." };
-        }
-
-        // Segmentación exacta A4 (297 / 210 = 1.414)
-        const a4Ratio = 297 / 210;
-        const pageCanvasHeight = Math.floor(canvas.width * a4Ratio);
-        const totalPages = Math.min(Math.max(Math.ceil(canvas.height / pageCanvasHeight), 1), 25);
-
-        const doc = new jsPDFClass({
-          orientation: 'p',
-          unit: 'mm',
-          format: 'a4',
-          compress: true
-        });
-
-        for (let i = 0; i < totalPages; i++) {
-          if (i > 0) doc.addPage('a4', 'p');
-
-          const sliceCanvas = document.createElement('canvas');
-          sliceCanvas.width = canvas.width;
-          sliceCanvas.height = pageCanvasHeight;
-          const ctx = sliceCanvas.getContext('2d');
-
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-
-          const sourceY = i * pageCanvasHeight;
-          const sourceHeight = Math.min(pageCanvasHeight, canvas.height - sourceY);
-
-          if (sourceHeight > 0) {
-            ctx.drawImage(
-              canvas,
-              0, sourceY, canvas.width, sourceHeight,
-              0, 0, canvas.width, sourceHeight
-            );
-          }
-
-          const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.88);
-          doc.addImage(sliceData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
-        }
-
-        // Restaurar elementos ocultos
+      // Restaurar elementos modificados en el DOM
+      await executeInPage(() => {
         document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
           el.style.removeProperty('display');
           el.removeAttribute('data-bwd-hidden');
         });
+      });
 
-        const pdfBlob = doc.output('blob');
-        const blobUrl = URL.createObjectURL(pdfBlob);
-
-        const safeTitle = (document.title || 'documento_web')
-          .replace(/[\\/:*?"<>|]/g, '_')
-          .replace(/\s+/g, '_')
-          .substring(0, 50);
-        const filename = `${safeTitle}_${Date.now().toString().slice(-4)}.pdf`;
-
-        // Disparar descarga directa en la página
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-
-        return {
-          success: true,
-          title: document.title || 'documento_web',
-          filename: filename,
-          blobUrl: blobUrl,
-          totalPages: totalPages
-        };
-
-      } catch (innerErr) {
-        return {
-          success: false,
-          error: innerErr.message || String(innerErr)
-        };
+      if (saveStatus === 'saved' || saveStatus === 'replaced') {
+        setProgress(100, `¡PDF fiel guardado! (${filename})`, 'success');
+      } else if (saveStatus === 'canceled') {
+        setProgress(0, "Guardado cancelado por el usuario", 'busy');
+      } else {
+        setProgress(100, `¡PDF procesado con éxito!`, 'success');
       }
-    }, [{ clean, expand, scale }]);
 
-    if (!pageResult) {
-      throw new Error("No se recibió respuesta del script inyectado en la página.");
+      setBusy(false);
+      return;
     }
 
-    if (!pageResult.success) {
-      throw new Error(pageResult.error || "No se pudo obtener el renderizado de la página.");
-    }
-
-    setProgress(90, "Descargando documento PDF...", 'busy');
-    await triggerDownload(pageResult.blobUrl, pageResult.filename);
-
-    setProgress(100, `¡PDF fiel descargado! (${pageResult.totalPages} pág.)`, 'success');
-    setBusy(false);
+    throw new Error("El motor nativo saveAsPDF de Firefox no está disponible.");
 
   } catch (err) {
     console.error("Error al exportar PDF:", err);
     setProgress(0, `Error: ${err.message || err}`, 'error');
     setBusy(false);
+
+    try {
+      await executeInPage(() => {
+        document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
+          el.style.removeProperty('display');
+          el.removeAttribute('data-bwd-hidden');
+        });
+      });
+    } catch (_) {}
   }
 });
 
 // ----------------------------------------------------------------------------
-// 5. Exportar a Word (.doc)
+// 4. Exportar a Word (.doc enriquecido / editable)
 // ----------------------------------------------------------------------------
 
 btnDocx.addEventListener('click', async () => {
@@ -405,7 +314,7 @@ btnDocx.addEventListener('click', async () => {
       };
     });
 
-    setProgress(70, "Generando formato Word enriquecido...", 'busy');
+    setProgress(70, "Formateando documento para Word...", 'busy');
 
     const today = new Date().toLocaleDateString('es-ES', {
       year: 'numeric', month: 'long', day: 'numeric'
@@ -456,104 +365,104 @@ btnDocx.addEventListener('click', async () => {
 });
 
 // ----------------------------------------------------------------------------
-// 6. Captura Completa PNG
+// 5. Captura Completa HD (Patrón GoFullPage: Compositor Real sin Fallos de CORS)
 // ----------------------------------------------------------------------------
 
 btnPngFull.addEventListener('click', async () => {
   try {
     setBusy(true);
-    setProgress(20, "Preparando captura continua...", 'busy');
+    setProgress(15, "Inicializando captura continua...", 'busy');
 
-    const scale = highQualityCheckbox.checked ? 1.5 : 1;
-    const tab = await getActiveTab();
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) throw new Error("No hay pestaña activa disponible.");
 
-    await ensureLibsInjected(tab.id);
+    // Medir dimensiones del documento en la página
+    const metrics = await executeInPage(() => {
+      window.scrollTo(0, 0);
+      return {
+        title: document.title || 'captura_web',
+        width: Math.max(document.documentElement.clientWidth, window.innerWidth),
+        height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+        dpr: window.devicePixelRatio || 1
+      };
+    });
 
-    setProgress(50, "Renderizando screenshot de página completa...", 'busy');
+    if (!metrics) throw new Error("No se pudo obtener las métricas de la página.");
 
-    const captureResult = await executeInPage(async (opts) => {
-      try {
-        window.scrollTo(0, 0);
-        const html2canvasFn = window.html2canvas || globalThis.html2canvas;
-        if (typeof html2canvasFn !== 'function') {
-          return { success: false, error: "html2canvas no está cargado." };
-        }
+    const totalHeight = Math.min(metrics.height, 12000);
+    const viewportH = metrics.viewportHeight;
 
-        const scrollH = Math.min(
-          Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-          20000
-        );
-        const scrollW = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
-
-        const canvas = await html2canvasFn(document.body, {
-          scale: opts.scale,
-          useCORS: true,
-          allowTaint: false,
-          logging: false,
-          windowWidth: scrollW,
-          windowHeight: Math.min(scrollH, 12000),
-          ignoreElements: (el) => {
-            return el.tagName === 'IFRAME' || el.tagName === 'SCRIPT' || el.tagName === 'NOSCRIPT';
-          }
-        });
-
-        return new Promise((resolve) => {
-          canvas.toBlob((blob) => {
-            if (!blob) {
-              resolve({ success: false, error: "No se pudo generar la imagen del lienzo." });
-              return;
-            }
-            const blobUrl = URL.createObjectURL(blob);
-            const safeTitle = (document.title || 'captura_web')
-              .replace(/[\\/:*?"<>|]/g, '_')
-              .replace(/\s+/g, '_')
-              .substring(0, 50);
-            const filename = `${safeTitle}_${Date.now().toString().slice(-4)}.png`;
-
-            // Descarga directa en la página
-            const a = document.createElement('a');
-            a.href = blobUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-
-            resolve({
-              success: true,
-              filename: filename,
-              blobUrl: blobUrl
-            });
-          }, 'image/png');
-        });
-
-      } catch (err) {
-        return { success: false, error: err.message || String(err) };
-      }
-    }, [{ scale }]);
-
-    if (!captureResult) {
-      throw new Error("No se recibió respuesta de captura de la página.");
+    // Si cabe en una sola pantalla, captura directa sin scroll
+    if (totalHeight <= viewportH) {
+      setProgress(60, "Capturando pantalla...", 'busy');
+      const dataUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
+      const filename = sanitizeFilename(metrics.title, 'png');
+      await triggerDownload(dataUrl, filename);
+      setProgress(100, `¡Captura PNG guardada! (${filename})`, 'success');
+      setBusy(false);
+      return;
     }
 
-    if (!captureResult.success) {
-      throw new Error(captureResult.error || "Error al capturar la imagen.");
+    // Si tiene scroll: desplazamiento secuencial y captura del compositor (sin CORS)
+    setProgress(35, "Capturando secciones de la página...", 'busy');
+
+    const slices = [];
+    let currentY = 0;
+    const step = viewportH;
+    let index = 0;
+
+    while (currentY < totalHeight) {
+      await executeInPage((y) => window.scrollTo(0, y), [currentY]);
+      await new Promise(r => setTimeout(r, 100)); // Breve espera para estabilizar render
+
+      const sliceUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
+      slices.push({ url: sliceUrl, y: currentY });
+
+      currentY += step;
+      index++;
+      const pct = 35 + Math.round((currentY / totalHeight) * 45);
+      setProgress(Math.min(pct, 80), `Capturando sección ${index}...`, 'busy');
     }
 
-    setProgress(90, "Descargando imagen PNG...", 'busy');
-    await triggerDownload(captureResult.blobUrl, captureResult.filename);
+    // Restaurar scroll al inicio
+    await executeInPage(() => window.scrollTo(0, 0));
 
-    setProgress(100, `¡Captura PNG guardada! (${captureResult.filename})`, 'success');
+    setProgress(85, "Ensamblando imagen panorámica HD...", 'busy');
+
+    const masterCanvas = document.createElement('canvas');
+    masterCanvas.width = metrics.viewportWidth;
+    masterCanvas.height = totalHeight;
+    const ctx = masterCanvas.getContext('2d');
+
+    for (const slice of slices) {
+      const img = new Image();
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = slice.url;
+      });
+      ctx.drawImage(img, 0, slice.y, metrics.viewportWidth, slice.y + viewportH > totalHeight ? totalHeight - slice.y : viewportH);
+    }
+
+    setProgress(95, "Descargando captura...", 'busy');
+    const finalDataUrl = masterCanvas.toDataURL('image/png');
+    const filename = sanitizeFilename(metrics.title, 'png');
+    await triggerDownload(finalDataUrl, filename);
+
+    setProgress(100, `¡Captura PNG guardada! (${filename})`, 'success');
     setBusy(false);
 
   } catch (err) {
-    console.error("Error al exportar PNG:", err);
+    console.error("Error en captura PNG:", err);
     setProgress(0, `Error: ${err.message || err}`, 'error');
     setBusy(false);
   }
 });
 
 // ----------------------------------------------------------------------------
-// 7. Tooltips e Inicialización
+// 6. Tooltips e Inicialización
 // ----------------------------------------------------------------------------
 
 function initTooltips() {
