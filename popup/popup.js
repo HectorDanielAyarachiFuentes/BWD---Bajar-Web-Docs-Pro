@@ -229,7 +229,242 @@ async function executeInPage(func, args = []) {
 }
 
 // ----------------------------------------------------------------------------
-// 3. Exportar PDF Fiel (Motor Visual de Alta Fidelidad y Proporción Real)
+// 3. Motor de Captura Completa HD (Multi-slice exacto, sin duplicación ni distorsión)
+// ----------------------------------------------------------------------------
+
+async function captureFullPageCanvas({ clean = false, expand = false, onProgress = () => {} } = {}) {
+  const tab = await getActiveTab();
+
+  // 1. Des-fijar elementos position: fixed para evitar que se repitan como barras flotantes en cada corte
+  await executeInPage((opts) => {
+    window._bwdRestores = [];
+
+    if (opts.clean) {
+      const selectors = [
+        '.cookie-banner', '#cookie-banner', '.cookies', '.modal-backdrop',
+        '.ad', '.ads', '.advertisement', '[id*="cookie"]', '[class*="cookie"]',
+        '.chat-widget', '#onetrust-consent-sdk', '[aria-label*="cookie" i]'
+      ];
+      selectors.forEach(sel => {
+        try {
+          document.querySelectorAll(sel).forEach(el => {
+            const style = window.getComputedStyle(el);
+            if (style.position === 'fixed' || style.position === 'sticky' || parseInt(style.zIndex, 10) > 1000) {
+              window._bwdRestores.push({ el, prop: 'display', val: el.style.display });
+              el.style.display = 'none';
+            }
+          });
+        } catch (_) {}
+      });
+    }
+
+    if (opts.expand) {
+      document.querySelectorAll('*').forEach(el => {
+        try {
+          const s = window.getComputedStyle(el);
+          if (s.overflowY === 'scroll' || s.overflowY === 'auto') {
+            if (el.scrollHeight > el.clientHeight && el.scrollHeight < 15000) {
+              window._bwdRestores.push({ el, prop: 'overflow', val: el.style.overflow });
+              window._bwdRestores.push({ el, prop: 'maxHeight', val: el.style.maxHeight });
+              el.style.overflow = 'visible';
+              el.style.maxHeight = 'none';
+            }
+          }
+        } catch (_) {}
+      });
+    }
+
+    // Identificar barras fijas superiores y cambiar temporalmente a absolute
+    document.querySelectorAll('*').forEach(el => {
+      try {
+        const s = window.getComputedStyle(el);
+        if (s.position === 'fixed' || s.position === 'sticky') {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= 120 && rect.height > 0) {
+            window._bwdRestores.push({ el, prop: 'position', val: el.style.position });
+            el.style.position = 'absolute';
+          }
+        }
+      } catch (_) {}
+    });
+  }, [{ clean, expand }]);
+
+  try {
+    // 2. Medir dimensiones del documento en la página
+    const metrics = await executeInPage(() => {
+      window.scrollTo(0, 0);
+      const docEl = document.documentElement;
+      const body = document.body;
+      const scrollH = Math.max(
+        body ? body.scrollHeight : 0,
+        body ? body.offsetHeight : 0,
+        docEl.clientHeight,
+        docEl.scrollHeight,
+        docEl.offsetHeight
+      );
+      const scrollW = Math.max(
+        body ? body.scrollWidth : 0,
+        body ? body.offsetWidth : 0,
+        docEl.clientWidth,
+        docEl.scrollWidth,
+        docEl.offsetWidth
+      );
+      return {
+        title: document.title || 'documento_web',
+        width: scrollW,
+        height: scrollH,
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+        dpr: window.devicePixelRatio || 1
+      };
+    });
+
+    if (!metrics) throw new Error("No se pudo obtener las métricas de la página.");
+
+    const totalHeight = Math.min(metrics.height, 12000);
+    const viewportH = metrics.viewportHeight;
+    const viewportW = metrics.viewportWidth;
+    const isSingleScreen = totalHeight <= (viewportH + 25);
+
+    if (isSingleScreen) {
+      onProgress(70, "Capturando diseño original de pantalla única...");
+      const captureDataUrl = await captureTabImage(tab, 'png');
+      const img = new Image();
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = rej;
+        img.src = captureDataUrl;
+      });
+
+      const singleCanvas = document.createElement('canvas');
+      singleCanvas.width = img.width;
+      singleCanvas.height = img.height;
+      const ctx = singleCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+
+      return { canvas: singleCanvas, isSingleScreen: true, metrics };
+    }
+
+    // 3. Captura multi-slice
+    onProgress(50, "Capturando secciones de la página...");
+    const slices = [];
+    let currentY = 0;
+    const maxScrollY = Math.max(0, totalHeight - viewportH);
+
+    while (currentY < totalHeight) {
+      const targetScrollY = Math.min(currentY, maxScrollY);
+
+      await executeInPage((y) => window.scrollTo(0, y), [targetScrollY]);
+      await new Promise(r => setTimeout(r, 150));
+
+      const actualScrollY = await executeInPage(() => window.scrollY || window.pageYOffset || 0);
+      const sliceUrl = await captureTabImage(tab, 'png');
+
+      const isLast = (currentY + viewportH >= totalHeight) || (targetScrollY >= maxScrollY);
+
+      slices.push({
+        url: sliceUrl,
+        targetY: currentY,
+        actualScrollY: actualScrollY,
+        isLast: isLast
+      });
+
+      if (isLast) break;
+
+      currentY += viewportH;
+      if (currentY + viewportH > totalHeight && currentY < totalHeight) {
+        currentY = maxScrollY;
+      }
+    }
+
+    // Restaurar scroll al inicio
+    await executeInPage(() => window.scrollTo(0, 0));
+
+    onProgress(75, "Ensamblando imagen completa sin superposiciones ni duplicados...");
+
+    // Cargar la primera imagen para obtener resolución nativa del compositor
+    const firstImg = new Image();
+    await new Promise((res, rej) => {
+      firstImg.onload = res;
+      firstImg.onerror = rej;
+      firstImg.src = slices[0].url;
+    });
+
+    const scaleX = firstImg.width / viewportW;
+    const scaleY = firstImg.height / viewportH;
+
+    const masterCanvas = document.createElement('canvas');
+    masterCanvas.width = firstImg.width;
+    masterCanvas.height = Math.round(totalHeight * scaleY);
+    const ctx = masterCanvas.getContext('2d');
+
+    let paintedCssY = 0;
+
+    for (let i = 0; i < slices.length; i++) {
+      const slice = slices[i];
+      const img = (i === 0) ? firstImg : await (async () => {
+        const im = new Image();
+        await new Promise((res, rej) => {
+          im.onload = res;
+          im.onerror = rej;
+          im.src = slice.url;
+        });
+        return im;
+      })();
+
+      if (i === 0) {
+        // Primer corte: pintar completo desde arriba
+        const sliceCssH = Math.min(viewportH, totalHeight);
+        const sH = Math.round(sliceCssH * scaleY);
+        ctx.drawImage(img, 0, 0, img.width, sH, 0, 0, masterCanvas.width, sH);
+        paintedCssY = sliceCssH;
+      } else if (slice.isLast) {
+        // Último corte: pintar ÚNICAMENTE la porción inferior restante
+        // Esto descarta completamente cualquier elemento superior ya pintado
+        const remainingCssH = totalHeight - paintedCssY;
+        if (remainingCssH > 0) {
+          const sH = Math.round(remainingCssH * scaleY);
+          const sy = Math.max(0, img.height - sH);
+          const dy = Math.round(paintedCssY * scaleY);
+          ctx.drawImage(img, 0, sy, img.width, sH, 0, dy, masterCanvas.width, sH);
+          paintedCssY += remainingCssH;
+        }
+      } else {
+        // Cortes intermedios completos
+        const sliceCssH = viewportH;
+        const sH = Math.round(sliceCssH * scaleY);
+        const dy = Math.round(paintedCssY * scaleY);
+        ctx.drawImage(img, 0, 0, img.width, sH, 0, dy, masterCanvas.width, sH);
+        paintedCssY += sliceCssH;
+      }
+    }
+
+    return { canvas: masterCanvas, isSingleScreen: false, metrics };
+
+  } finally {
+    // Restaurar siempre todos los estilos modificados en la página
+    try {
+      await executeInPage(() => {
+        if (window._bwdRestores && Array.isArray(window._bwdRestores)) {
+          window._bwdRestores.forEach(item => {
+            try {
+              if (item.val) item.el.style[item.prop] = item.val;
+              else item.el.style.removeProperty(item.prop);
+            } catch (_) {}
+          });
+          delete window._bwdRestores;
+        }
+        document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
+          el.style.removeProperty('display');
+          el.removeAttribute('data-bwd-hidden');
+        });
+      });
+    } catch (_) {}
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 4. Exportar PDF Fiel (Motor Visual de Alta Fidelidad y Proporción Real)
 // ----------------------------------------------------------------------------
 
 btnPdfVisual.addEventListener('click', async () => {
@@ -241,125 +476,17 @@ btnPdfVisual.addEventListener('click', async () => {
     const expand = expandScrollCheckbox.checked;
     const tab = await getActiveTab();
 
-    // 1. Limpieza y preparación visual en la página antes de generar el PDF
-    if (clean || expand) {
-      setProgress(35, "Aplicando optimizaciones de lectura...", 'busy');
-      await executeInPage((opts) => {
-        if (opts.clean) {
-          const selectors = [
-            'header[style*="fixed"]', 'nav[style*="fixed"]', 'div[style*="fixed"]',
-            '.cookie-banner', '#cookie-banner', '.cookies', '.modal', '.popup',
-            '.ad', '.ads', '.advertisement', '[id*="cookie"]', '[class*="cookie"]',
-            '.fixed-top', '.sticky-top', '.chat-widget', '#onetrust-consent-sdk'
-          ];
-          selectors.forEach(sel => {
-            try {
-              document.querySelectorAll(sel).forEach(el => {
-                const style = window.getComputedStyle(el);
-                if (style.position === 'fixed' || style.position === 'sticky') {
-                  el.setAttribute('data-bwd-hidden', 'true');
-                  el.style.display = 'none';
-                }
-              });
-            } catch (_) {}
-          });
-        }
-
-        if (opts.expand) {
-          document.querySelectorAll('*').forEach(el => {
-            try {
-              const s = window.getComputedStyle(el);
-              if (s.overflowY === 'scroll' || s.overflowY === 'auto') {
-                if (el.scrollHeight > el.clientHeight && el.scrollHeight < 15000) {
-                  el.style.overflow = 'visible';
-                  el.style.maxHeight = 'none';
-                }
-              }
-            } catch (_) {}
-          });
-        }
-      }, [{ clean, expand }]);
-    }
-
-    setProgress(55, "Capturando diseño visual exacto en alta resolución...", 'busy');
-
-    // Medir dimensiones del documento en la página
-    const metrics = await executeInPage(() => {
-      window.scrollTo(0, 0);
-      return {
-        title: document.title || 'documento_web',
-        width: Math.max(document.documentElement.clientWidth, window.innerWidth),
-        height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-        viewportHeight: window.innerHeight,
-        viewportWidth: window.innerWidth
-      };
+    const { canvas, isSingleScreen, metrics } = await captureFullPageCanvas({
+      clean,
+      expand,
+      onProgress: (pct, msg) => setProgress(pct, msg, 'busy')
     });
-
-    const isSingleScreen = !metrics || metrics.height <= (metrics.viewportHeight + 50);
-    const filename = sanitizeFilename(tab.title, 'pdf');
-
-    let finalCanvas = null;
-
-    if (isSingleScreen) {
-      // Caso 1: Pantalla completa fija (como Facebook Login, Landing, Portada)
-      setProgress(70, "Procesando proporciones originales de pantalla...", 'busy');
-      const captureDataUrl = await captureTabImage(tab, 'png');
-
-      const img = new Image();
-      await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = rej;
-        img.src = captureDataUrl;
-      });
-
-      finalCanvas = document.createElement('canvas');
-      finalCanvas.width = img.width;
-      finalCanvas.height = img.height;
-      const ctx = finalCanvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-    } else {
-      // Caso 2: Página larga con desplazamiento continuo
-      setProgress(60, "Capturando secciones completas de la página...", 'busy');
-      const totalHeight = Math.min(metrics.height, 12000);
-      const viewportH = metrics.viewportHeight;
-
-      const slices = [];
-      let currentY = 0;
-      const step = viewportH;
-
-      while (currentY < totalHeight) {
-        await executeInPage((y) => window.scrollTo(0, y), [currentY]);
-        await new Promise(r => setTimeout(r, 120));
-
-        const sliceUrl = await captureTabImage(tab, 'png');
-        slices.push({ url: sliceUrl, y: currentY });
-
-        currentY += step;
-      }
-
-      await executeInPage(() => window.scrollTo(0, 0));
-
-      finalCanvas = document.createElement('canvas');
-      finalCanvas.width = metrics.viewportWidth;
-      finalCanvas.height = totalHeight;
-      const ctx = finalCanvas.getContext('2d');
-
-      for (const slice of slices) {
-        const img = new Image();
-        await new Promise((res, rej) => {
-          img.onload = res;
-          img.onerror = rej;
-          img.src = slice.url;
-        });
-        ctx.drawImage(img, 0, slice.y, metrics.viewportWidth, slice.y + viewportH > totalHeight ? totalHeight - slice.y : viewportH);
-      }
-    }
 
     setProgress(85, "Compilando PDF con proporción nativa y márgenes ejecutivos...", 'busy');
 
     const { jsPDF } = window.jspdf;
-    const canvasWidth = finalCanvas.width;
-    const canvasHeight = finalCanvas.height;
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
 
     // Detectar automáticamente la orientación original (Horizontal para diseño desktop, Vertical para documentos largos)
     const isLandscape = canvasWidth >= canvasHeight;
@@ -377,7 +504,9 @@ btnPdfVisual.addEventListener('click', async () => {
       format: 'a4'
     });
 
-    if (isSingleScreen || isLandscape) {
+    const fitsSinglePage = isSingleScreen || isLandscape;
+
+    if (fitsSinglePage) {
       // Renderizado proporcional perfecto en 1 sola página:
       // Conserva exactamente la proporción de aspecto del sitio original (sin deformar ni cortar)
       const scale = Math.min(usableW / canvasWidth, usableH / canvasHeight);
@@ -386,7 +515,7 @@ btnPdfVisual.addEventListener('click', async () => {
       const posX = margin + (usableW - renderW) / 2;
       const posY = margin + (usableH - renderH) / 2;
 
-      const imgData = finalCanvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/png');
       pdf.addImage(imgData, 'PNG', posX, posY, renderW, renderH);
 
     } else {
@@ -408,7 +537,7 @@ btnPdfVisual.addEventListener('click', async () => {
         pageCanvas.height = currentSliceH;
 
         const pctx = pageCanvas.getContext('2d');
-        pctx.drawImage(finalCanvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
+        pctx.drawImage(canvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
 
         const pageDataUrl = pageCanvas.toDataURL('image/png');
         const renderH = currentSliceH * scale;
@@ -420,17 +549,10 @@ btnPdfVisual.addEventListener('click', async () => {
       }
     }
 
+    const filename = sanitizeFilename(metrics.title || tab.title, 'pdf');
     setProgress(95, "Descargando documento PDF fiel...", 'busy');
     const pdfBlob = pdf.output('blob');
     await triggerDownload(pdfBlob, filename);
-
-    // Restaurar elementos modificados en el DOM
-    await executeInPage(() => {
-      document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
-        el.style.removeProperty('display');
-        el.removeAttribute('data-bwd-hidden');
-      });
-    });
 
     setProgress(100, `¡PDF fiel descargado con éxito! (${filename})`, 'success');
     setBusy(false);
@@ -439,15 +561,6 @@ btnPdfVisual.addEventListener('click', async () => {
     console.error("Error al exportar PDF:", err);
     setProgress(0, `Error: ${formatErrorMessage(err)}`, 'error');
     setBusy(false);
-
-    try {
-      await executeInPage(() => {
-        document.querySelectorAll('[data-bwd-hidden="true"]').forEach(el => {
-          el.style.removeProperty('display');
-          el.removeAttribute('data-bwd-hidden');
-        });
-      });
-    } catch (_) {}
   }
 });
 
@@ -722,86 +835,24 @@ btnDocx.addEventListener('click', async () => {
 btnPngFull.addEventListener('click', async () => {
   try {
     setBusy(true);
-    setProgress(15, "Inicializando captura continua...", 'busy');
+    setProgress(15, "Iniciando captura continua HD...", 'busy');
 
+    const clean = cleanDomCheckbox.checked;
+    const expand = expandScrollCheckbox.checked;
     const tab = await getActiveTab();
 
-    // Medir dimensiones del documento en la página
-    const metrics = await executeInPage(() => {
-      window.scrollTo(0, 0);
-      return {
-        title: document.title || 'captura_web',
-        width: Math.max(document.documentElement.clientWidth, window.innerWidth),
-        height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
-        viewportHeight: window.innerHeight,
-        viewportWidth: window.innerWidth,
-        dpr: window.devicePixelRatio || 1
-      };
+    const { canvas, metrics } = await captureFullPageCanvas({
+      clean,
+      expand,
+      onProgress: (pct, msg) => setProgress(pct, msg, 'busy')
     });
 
-    if (!metrics) throw new Error("No se pudo obtener las métricas de la página.");
-
-    const totalHeight = Math.min(metrics.height, 12000);
-    const viewportH = metrics.viewportHeight;
-
-    // Si cabe en una sola pantalla, captura directa sin scroll
-    if (totalHeight <= viewportH) {
-      setProgress(60, "Capturando pantalla...", 'busy');
-      const dataUrl = await captureTabImage(tab, 'png');
-      const filename = sanitizeFilename(metrics.title, 'png');
-      await triggerDownload(dataUrl, filename);
-      setProgress(100, `¡Captura PNG guardada! (${filename})`, 'success');
-      setBusy(false);
-      return;
-    }
-
-    // Si tiene scroll: desplazamiento secuencial y captura del compositor (sin CORS)
-    setProgress(35, "Capturando secciones de la página...", 'busy');
-
-    const slices = [];
-    let currentY = 0;
-    const step = viewportH;
-    let index = 0;
-
-    while (currentY < totalHeight) {
-      await executeInPage((y) => window.scrollTo(0, y), [currentY]);
-      await new Promise(r => setTimeout(r, 120)); // Breve espera para estabilizar render y lazy loading
-
-      const sliceUrl = await captureTabImage(tab, 'png');
-      slices.push({ url: sliceUrl, y: currentY });
-
-      currentY += step;
-      index++;
-      const pct = 35 + Math.round((currentY / totalHeight) * 45);
-      setProgress(Math.min(pct, 80), `Capturando sección ${index}...`, 'busy');
-    }
-
-    // Restaurar scroll al inicio
-    await executeInPage(() => window.scrollTo(0, 0));
-
-    setProgress(85, "Ensamblando imagen panorámica HD...", 'busy');
-
-    const masterCanvas = document.createElement('canvas');
-    masterCanvas.width = metrics.viewportWidth;
-    masterCanvas.height = totalHeight;
-    const ctx = masterCanvas.getContext('2d');
-
-    for (const slice of slices) {
-      const img = new Image();
-      await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = rej;
-        img.src = slice.url;
-      });
-      ctx.drawImage(img, 0, slice.y, metrics.viewportWidth, slice.y + viewportH > totalHeight ? totalHeight - slice.y : viewportH);
-    }
-
-    setProgress(95, "Descargando captura...", 'busy');
-    const finalDataUrl = masterCanvas.toDataURL('image/png');
-    const filename = sanitizeFilename(metrics.title, 'png');
+    setProgress(90, "Generando archivo PNG en alta resolución...", 'busy');
+    const finalDataUrl = canvas.toDataURL('image/png');
+    const filename = sanitizeFilename(metrics.title || tab.title, 'png');
     await triggerDownload(finalDataUrl, filename);
 
-    setProgress(100, `¡Captura PNG guardada! (${filename})`, 'success');
+    setProgress(100, `¡Captura PNG HD guardada con éxito! (${filename})`, 'success');
     setBusy(false);
 
   } catch (err) {
