@@ -71,6 +71,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       cleanHtml = cleanHtml.replace(/<head([^>]*)>/i, `<head$1><base href="${data.baseURI || data.url}">`);
     }
 
+    // Resolver imágenes perezosas en el string HTML para que no queden como placeholders vacíos
+    cleanHtml = cleanHtml.replace(/<img\b([^>]*?)>/gi, (match, attrs) => {
+      let newAttrs = attrs;
+      const dataSrcMatch = attrs.match(/\bdata-src=["']([^"']+)["']/i);
+      if (dataSrcMatch && dataSrcMatch[1]) {
+        if (/\bsrc=["'][^"']*["']/i.test(newAttrs)) {
+          newAttrs = newAttrs.replace(/\bsrc=["'][^"']*["']/i, `src="${dataSrcMatch[1]}"`);
+        } else {
+          newAttrs += ` src="${dataSrcMatch[1]}"`;
+        }
+      }
+      const dataSrcsetMatch = attrs.match(/\bdata-srcset=["']([^"']+)["']/i);
+      if (dataSrcsetMatch && dataSrcsetMatch[1]) {
+        if (/\bsrcset=["'][^"']*["']/i.test(newAttrs)) {
+          newAttrs = newAttrs.replace(/\bsrcset=["'][^"']*["']/i, `srcset="${dataSrcsetMatch[1]}"`);
+        } else {
+          newAttrs += ` srcset="${dataSrcsetMatch[1]}"`;
+        }
+      }
+      newAttrs = newAttrs.replace(/\bloading=["']lazy["']/gi, 'loading="eager"');
+      return `<img ${newAttrs}>`;
+    });
+
     // Estilos del editor inyectados dentro del iframe
     const editorInjectedStyles = `
       <style id="bwd-editor-internal-css">
@@ -127,6 +150,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!frameDoc || !frameDoc.body) return;
 
     frameDoc.body.setAttribute('data-bwd-tool', activeTool);
+
+    // Asegurar que las imágenes en el DOM del iframe tengan su URL real cargada
+    frameDoc.querySelectorAll('img').forEach(img => {
+      const dataSrc = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src') || img.getAttribute('data-url');
+      if (dataSrc && (!img.src || img.src.includes('placeholder') || img.src.startsWith('data:') || img.src.includes('svg'))) {
+        img.src = dataSrc;
+      }
+      const dataSrcset = img.getAttribute('data-srcset');
+      if (dataSrcset) {
+        img.srcset = dataSrcset;
+      }
+      img.removeAttribute('loading');
+      img.setAttribute('loading', 'eager');
+    });
 
     // Desactivar navegación al hacer clic en enlaces
     frameDoc.addEventListener('click', (e) => {
@@ -361,32 +398,129 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Desactivar temporalmente cursores de edición y cajas de foco
     frameDoc.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
 
-    onProgress("Compilando vista fiel con escala Retina 2x...", 45);
+    // 1. Asegurar que todas las imágenes en el iframe estén resueltas
+    frameDoc.querySelectorAll('img').forEach(img => {
+      const dataSrc = img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src') || img.getAttribute('data-url');
+      if (dataSrc && (!img.src || img.src.includes('placeholder') || img.src.startsWith('data:') || img.src.includes('svg'))) {
+        img.src = dataSrc;
+      }
+      const dataSrcset = img.getAttribute('data-srcset');
+      if (dataSrcset) {
+        img.srcset = dataSrcset;
+      }
+      img.removeAttribute('loading');
+      img.setAttribute('loading', 'eager');
+    });
+
+    onProgress("Verificando carga de imágenes reales...", 15);
+
+    // 2. Esperar activamente a que las imágenes completen su descarga para evitar cajas grises
+    const pendingImages = Array.from(frameDoc.querySelectorAll('img')).filter(img => img.src && !img.src.startsWith('data:'));
+    if (pendingImages.length > 0) {
+      await Promise.all(pendingImages.map(img => {
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return new Promise(resolve => {
+          img.addEventListener('load', resolve, { once: true });
+          img.addEventListener('error', resolve, { once: true });
+          setTimeout(resolve, 2000); // 2s timeout máximo para no bloquear
+        });
+      }));
+    }
 
     const targetEl = frameDoc.documentElement || frameDoc.body;
+    const docHeight = Math.max(targetEl.scrollHeight, targetEl.offsetHeight, 1000);
+
+    // Escala inteligente adaptativa:
+    // Evita superar el límite de GPU de Firefox (32,767px) y reduce el peso drásticamente
+    let scale = 2;
+    if (docHeight > 10000) {
+      scale = 1.35;
+    } else if (docHeight > 5000) {
+      scale = 1.5;
+    }
+    if (docHeight * scale > 28000) {
+      scale = Math.max(1, 28000 / docHeight);
+    }
+
+    onProgress("Compilando vista de alta definición...", 40);
 
     return await window.html2canvas(targetEl, {
       useCORS: true,
-      scale: 2,
+      scale: scale,
       backgroundColor: '#ffffff',
       logging: false
     });
   }
 
+  // Motor de rebanado unificado A4 con compresión JPEG 0.85 (Reduce 560MB a 5-8MB)
+  function sliceCanvasForA4(canvas, onProgress = () => {}) {
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+
+    // Relación de aspecto A4 estándar: Ancho útil 194mm, Alto útil 281mm -> Ratio = 281 / 194 ≈ 1.4484
+    const sliceHeightPx = Math.floor(canvasWidth * (281 / 194));
+    const isSingleScreen = (canvasHeight <= (canvasWidth * 1.45));
+
+    if (isSingleScreen) {
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvasWidth;
+      pageCanvas.height = canvasHeight;
+      const pctx = pageCanvas.getContext('2d');
+      pctx.fillStyle = '#ffffff';
+      pctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      pctx.drawImage(canvas, 0, 0);
+
+      return [{
+        dataUrl: pageCanvas.toDataURL('image/jpeg', 0.85),
+        canvasWidth,
+        canvasHeight,
+        isSingleScreen: true
+      }];
+    }
+
+    const slices = [];
+    let currentY = 0;
+    let pageIndex = 0;
+    const totalPages = Math.ceil(canvasHeight / sliceHeightPx);
+
+    while (currentY < canvasHeight) {
+      const currentSliceH = Math.min(sliceHeightPx, canvasHeight - currentY);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvasWidth;
+      pageCanvas.height = currentSliceH;
+
+      const pctx = pageCanvas.getContext('2d');
+      pctx.fillStyle = '#ffffff';
+      pctx.fillRect(0, 0, canvasWidth, currentSliceH);
+      pctx.drawImage(canvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
+
+      slices.push({
+        dataUrl: pageCanvas.toDataURL('image/jpeg', 0.85),
+        canvasWidth,
+        canvasHeight: currentSliceH,
+        sliceHeightPx,
+        isSingleScreen: false
+      });
+
+      currentY += sliceHeightPx;
+      pageIndex++;
+      onProgress(pageIndex, totalPages);
+    }
+
+    return slices;
+  }
+
   // A. Descargar PDF Fiel
   btnEditorPdf.addEventListener('click', async () => {
     try {
-      showExportModal("Generando PDF Fiel con tus ediciones...", "Iniciando captura sin distorsión...", 20);
+      showExportModal("Generando PDF Fiel con tus ediciones...", "Iniciando captura sin distorsión...", 15);
 
       const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando PDF Fiel...", msg, pct));
 
-      showExportModal("Compilando archivo PDF...", "Aplicando márgenes ejecutivos...", 85);
+      showExportModal("Compilando archivo PDF...", "Aplicando compresión optimizada...", 65);
 
       const { jsPDF } = window.jspdf;
-      const canvasWidth = canvas.width;
-      const canvasHeight = canvas.height;
-
-      const isLandscape = canvasWidth >= canvasHeight;
+      const isLandscape = canvas.width >= canvas.height && (canvas.height <= canvas.width * 0.8);
       const orientation = isLandscape ? 'landscape' : 'portrait';
       const pageW = isLandscape ? 297 : 210;
       const pageH = isLandscape ? 210 : 297;
@@ -397,51 +531,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pdf = new jsPDF({
         orientation: orientation,
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
 
-      const isSingleScreen = (canvasHeight <= (canvasWidth * 1.45)) || isLandscape;
+      const slices = sliceCanvasForA4(canvas, (current, total) => {
+        const pct = Math.min(95, 65 + Math.round((current / total) * 25));
+        showExportModal("Compilando archivo PDF...", `Paginando hoja ${current} de ${total}...`, pct);
+      });
 
-      if (isSingleScreen) {
-        // Escala uniforme que preserva 100% de la proporción nativa sin deformar ni estirar
-        const scale = Math.min(usableW / canvasWidth, usableH / canvasHeight);
-        const renderW = canvasWidth * scale;
-        const renderH = canvasHeight * scale;
-        const posX = margin + (usableW - renderW) / 2;
-        const posY = margin + (usableH - renderH) / 2;
-
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', posX, posY, renderW, renderH);
-
-      } else {
-        // Documento largo: paginación secuencial limpia sin aplastar
-        const scale = usableW / canvasWidth;
-        const sliceHeightPx = usableH / scale;
-
-        let currentY = 0;
-        let pageIndex = 0;
-
-        while (currentY < canvasHeight) {
-          if (pageIndex > 0) {
-            pdf.addPage('a4', 'portrait');
-          }
-
-          const currentSliceH = Math.min(sliceHeightPx, canvasHeight - currentY);
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = canvasWidth;
-          pageCanvas.height = currentSliceH;
-
-          const pctx = pageCanvas.getContext('2d');
-          pctx.drawImage(canvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
-
-          const pageDataUrl = pageCanvas.toDataURL('image/png');
-          const renderH = currentSliceH * scale;
-
-          pdf.addImage(pageDataUrl, 'PNG', margin, margin, usableW, renderH);
-
-          currentY += sliceHeightPx;
-          pageIndex++;
+      slices.forEach((slice, idx) => {
+        if (idx > 0) {
+          pdf.addPage('a4', orientation);
         }
-      }
+
+        if (slice.isSingleScreen) {
+          const scale = Math.min(usableW / slice.canvasWidth, usableH / slice.canvasHeight);
+          const renderW = slice.canvasWidth * scale;
+          const renderH = slice.canvasHeight * scale;
+          const posX = margin + (usableW - renderW) / 2;
+          const posY = margin + (usableH - renderH) / 2;
+          pdf.addImage(slice.dataUrl, 'JPEG', posX, posY, renderW, renderH, undefined, 'FAST');
+        } else {
+          const scale = usableW / slice.canvasWidth;
+          const renderH = slice.canvasHeight * scale;
+          pdf.addImage(slice.dataUrl, 'JPEG', margin, margin, usableW, renderH, undefined, 'FAST');
+        }
+      });
 
       const filename = sanitizeName(cloneData ? cloneData.title : 'documento_editado', 'pdf');
       pdf.save(filename);
@@ -458,106 +574,77 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // B. Exportar a Word (.doc enriquecido / editable)
+  // B. Exportar a Word (.doc fiel exactamente igual al PDF / web)
   btnEditorDocx.addEventListener('click', async () => {
     try {
-      showExportModal("Generando documento Word (.doc)...", "Capturando portada fiel...", 25);
+      showExportModal("Generando documento Word (.doc)...", "Iniciando captura sin distorsión...", 15);
 
       const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando documento Word...", msg, pct));
 
-      const visualSnapshotUrl = canvas.toDataURL('image/png');
-      const rawBase64 = visualSnapshotUrl.replace(/^data:image\/[a-z]+;base64,/, '');
-      const chunkedBase64 = (rawBase64.match(/.{1,76}/g) || [rawBase64]).join('\r\n');
+      showExportModal("Compilando documento Word...", "Generando páginas idénticas al PDF...", 65);
 
       const title = (cloneData && cloneData.title) ? cloneData.title : 'Documento Web Editado';
-      const today = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
-      // Calcular dimensiones exactas en pulgadas para Word para preservar 100% el aspecto original
-      const aspect = canvas.width / (canvas.height || 1);
-      let imgWinches = 6.6;
-      let imgHinches = imgWinches / aspect;
-      if (imgHinches > 8.0) {
-        imgHinches = 8.0;
-        imgWinches = imgHinches * aspect;
-      }
-
-      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
-      const blocks = [];
-      frameDoc.body.querySelectorAll('h1, h2, h3, h4, p, table, ul, ol').forEach(el => {
-        const tag = el.tagName.toLowerCase();
-        const text = el.innerText ? el.innerText.trim() : '';
-        if (!text && tag !== 'table') return;
-
-        if (tag.startsWith('h')) {
-          blocks.push(`<${tag} style="color: #0f172a; margin-top: 14pt; margin-bottom: 4pt; font-weight: bold;">${text}</${tag}>`);
-        } else if (tag === 'p') {
-          blocks.push(`<p style="margin: 0 0 8pt 0; line-height: 1.45; color: #334155;">${text}</p>`);
-        } else if (tag === 'table') {
-          blocks.push(el.outerHTML);
-        }
+      const slices = sliceCanvasForA4(canvas, (current, total) => {
+        const pct = Math.min(95, 65 + Math.round((current / total) * 25));
+        showExportModal("Compilando documento Word...", `Generando página ${current} de ${total}...`, pct);
       });
 
-      const wordHtmlContent = `
+      const pageImagesHtml = slices.map((slice, idx) => `
+        <div class="bwd-word-page" style="${idx > 0 ? 'page-break-before: always; mso-break-type: page-break;' : ''} margin: 0; padding: 0; text-align: center;">
+          <img src="${slice.dataUrl}" alt="Página ${idx + 1}" style="width: 7.6in; max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+        </div>
+      `);
+
+      const wordHtmlDoc = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
         <head>
           <meta charset='utf-8'>
           <title>${title}</title>
+          <!--[if gte mso 9]>
+          <xml>
+            <w:WordDocument>
+              <w:View>Print</w:View>
+              <w:Zoom>100</w:Zoom>
+              <w:DoNotOptimizeForBrowser/>
+            </w:WordDocument>
+          </xml>
+          <![endif]-->
           <style>
-            @page Section1 { size: 8.27in 11.69in; margin: 0.6in; }
-            div.Section1 { page: Section1; }
-            body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1e293b; }
-            h1 { font-size: 20pt; color: #0f172a; margin-bottom: 6pt; }
-            .card { background-color: #f8fafc; border-left: 3.5pt solid #2563eb; padding: 8pt 12pt; margin-bottom: 12pt; }
-            img.cover { width: ${imgWinches.toFixed(2)}in; height: ${imgHinches.toFixed(2)}in; border: 1pt solid #cbd5e1; display: block; margin: 0 auto; }
+            @page WordSection1 {
+              size: 210mm 297mm;
+              margin: 8mm 8mm 8mm 8mm;
+              mso-page-orientation: portrait;
+              mso-header-margin: 0;
+              mso-footer-margin: 0;
+            }
+            div.WordSection1 {
+              page: WordSection1;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background-color: #ffffff;
+            }
           </style>
         </head>
         <body>
-          <div class="Section1">
-            <h1>${title}</h1>
-            <div class="card">
-              <div><strong>Origen:</strong> ${cloneData ? cloneData.url : 'Web'}</div>
-              <div><strong>Fecha:</strong> ${today} — Editado con BWD Creador Inteligente</div>
-            </div>
-            <div style="text-align: center; margin-bottom: 14pt;">
-              <div style="font-weight: bold; color: #2563eb; font-size: 8.5pt; text-transform: uppercase; margin-bottom: 4pt;">Vista Visual Editada (Proporción Fiel)</div>
-              <img class="cover" width="${imgWinches.toFixed(2)}in" height="${imgHinches.toFixed(2)}in" src="snapshot_cover.png" alt="Vista editada" />
-            </div>
-            <div style="page-break-before: always; margin-top: 14pt;">
-              <h2 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt;">Contenido Editado</h2>
-              ${blocks.join('\n')}
-            </div>
+          <div class="WordSection1">
+            ${pageImagesHtml.join('\n')}
           </div>
         </body>
         </html>
       `;
 
-      const boundary = '----=_NextPart_01D9_BWD_OFFICE';
-      const mhtmlPayload = [
-        'MIME-Version: 1.0',
-        `Content-Type: multipart/related; boundary="${boundary}"; type="text/html"`,
-        '',
-        `--${boundary}`,
-        'Content-Type: text/html; charset="utf-8"',
-        'Content-Location: http://document/page.html',
-        '',
-        wordHtmlContent,
-        '',
-        `--${boundary}`,
-        'Content-Type: image/png',
-        'Content-Transfer-Encoding: base64',
-        'Content-Location: snapshot_cover.png',
-        '',
-        chunkedBase64,
-        '',
-        `--${boundary}--`
-      ].join('\r\n');
-
-      const blob = new Blob([mhtmlPayload], { type: 'application/msword;charset=utf-8' });
+      const blob = new Blob(['\ufeff' + wordHtmlDoc], { type: 'application/msword;charset=utf-8' });
       const filename = sanitizeName(title, 'doc');
 
-      triggerDownloadBlob(blob, filename);
+      const downloadUrl = URL.createObjectURL(blob);
+      triggerDownloadUrl(downloadUrl, filename);
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
+
       hideExportModal();
-      showToast(`¡Documento Word guardado! (${filename})`);
+      showToast(`¡Documento Word (.doc) guardado fielmente! (${filename})`);
       setTool(activeTool);
 
     } catch (err) {

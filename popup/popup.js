@@ -950,6 +950,33 @@ function initEditorLauncher() {
       const tab = await getActiveTab();
 
       const cloneData = await executeInPage(() => {
+        // 1. Resolver imágenes lazy-loaded para que no queden como placeholders vacíos
+        try {
+          document.querySelectorAll('img').forEach(img => {
+            const realSrc = img.currentSrc || img.getAttribute('data-src') || img.getAttribute('data-original') || img.getAttribute('data-lazy-src') || img.getAttribute('data-url');
+            if (realSrc && (!img.src || img.src.includes('placeholder') || img.src.startsWith('data:') || img.src.includes('svg'))) {
+              img.src = realSrc;
+            } else if (img.currentSrc && img.currentSrc !== img.src) {
+              img.src = img.currentSrc;
+            }
+
+            const realSrcset = img.getAttribute('data-srcset');
+            if (realSrcset) {
+              img.srcset = realSrcset;
+            }
+
+            img.removeAttribute('loading');
+            img.setAttribute('loading', 'eager');
+          });
+
+          document.querySelectorAll('picture source').forEach(source => {
+            const dataSrcset = source.getAttribute('data-srcset');
+            if (dataSrcset) {
+              source.srcset = dataSrcset;
+            }
+          });
+        } catch (_) {}
+
         return {
           html: document.documentElement.outerHTML,
           title: document.title || 'Página Web',
