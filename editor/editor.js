@@ -352,34 +352,204 @@ document.addEventListener('DOMContentLoaded', async () => {
   toolRedactBtn.addEventListener('click', () => setTool('redact'));
 
   // --------------------------------------------------------------------------
-  // 6. Motores de Exportación Directa desde el Editor
   // --------------------------------------------------------------------------
+  // 6. Motor de Captura Exacta sin Distorsión (Aspect Ratio 100% Fiel)
+  // --------------------------------------------------------------------------
+
+  async function captureEditorCanvas(onProgress = () => {}) {
+    const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
+    const frameWin = cloneFrame.contentWindow;
+
+    // Desactivar temporalmente cursores de edición y cajas de foco
+    frameDoc.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
+
+    onProgress("Capturando vista con fidelidad visual nativa...", 35);
+
+    const header = document.querySelector('.editor-header');
+    const guide = document.querySelector('.editor-guide-bar');
+    const workspace = document.querySelector('.editor-workspace');
+
+    const origHeaderDisplay = header.style.display;
+    const origGuideDisplay = guide.style.display;
+    const origWorkspaceHeight = workspace.style.height;
+
+    // Intentar primero con el motor de captura nativo del compositor (cero distorsión en SVG, imágenes o fuentes)
+    try {
+      if (typeof browser !== 'undefined' && browser.tabs && browser.tabs.captureVisibleTab) {
+        header.style.display = 'none';
+        guide.style.display = 'none';
+        workspace.style.height = '100vh';
+
+        frameWin.scrollTo(0, 0);
+        if (frameDoc.documentElement) frameDoc.documentElement.scrollTop = 0;
+        if (frameDoc.body) frameDoc.body.scrollTop = 0;
+        await new Promise(r => setTimeout(r, 100));
+
+        const totalHeight = Math.max(frameDoc.body.scrollHeight, frameDoc.documentElement.scrollHeight);
+        const viewportH = window.innerHeight;
+
+        if (totalHeight <= viewportH + 25) {
+          // Vista de pantalla única
+          const dataUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
+
+          const img = new Image();
+          await new Promise((res, rej) => {
+            img.onload = res;
+            img.onerror = rej;
+            img.src = dataUrl;
+          });
+
+          const scaleY = img.height / viewportH;
+          const contentH = Math.min(img.height, Math.round(totalHeight * scaleY));
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = contentH;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, img.width, contentH, 0, 0, img.width, contentH);
+
+          return canvas;
+        } else {
+          // Vista larga con scroll
+          const slices = [];
+          let currentY = 0;
+          const maxScrollY = Math.max(0, totalHeight - viewportH);
+
+          while (currentY < totalHeight) {
+            const targetScrollY = Math.min(currentY, maxScrollY);
+            frameWin.scrollTo(0, targetScrollY);
+            if (frameDoc.documentElement) frameDoc.documentElement.scrollTop = targetScrollY;
+            if (frameDoc.body) frameDoc.body.scrollTop = targetScrollY;
+            await new Promise(r => setTimeout(r, 120));
+
+            const sliceUrl = await browser.tabs.captureVisibleTab(null, { format: 'png' });
+            const isLast = (currentY + viewportH >= totalHeight) || (targetScrollY >= maxScrollY);
+
+            slices.push({ url: sliceUrl, targetY: currentY, isLast });
+            if (isLast) break;
+
+            currentY += viewportH;
+            if (currentY + viewportH > totalHeight && currentY < totalHeight) {
+              currentY = maxScrollY;
+            }
+          }
+
+          frameWin.scrollTo(0, 0);
+          if (frameDoc.documentElement) frameDoc.documentElement.scrollTop = 0;
+          if (frameDoc.body) frameDoc.body.scrollTop = 0;
+
+          const firstImg = new Image();
+          await new Promise((res, rej) => {
+            firstImg.onload = res;
+            firstImg.onerror = rej;
+            firstImg.src = slices[0].url;
+          });
+
+          const scaleY = firstImg.height / viewportH;
+          const masterCanvas = document.createElement('canvas');
+          masterCanvas.width = firstImg.width;
+          masterCanvas.height = Math.round(totalHeight * scaleY);
+          const ctx = masterCanvas.getContext('2d');
+
+          let paintedCssY = 0;
+          for (let i = 0; i < slices.length; i++) {
+            const slice = slices[i];
+            const img = (i === 0) ? firstImg : await (async () => {
+              const im = new Image();
+              await new Promise((res, rej) => {
+                im.onload = res;
+                im.onerror = rej;
+                im.src = slice.url;
+              });
+              return im;
+            })();
+
+            if (i === 0) {
+              const sliceCssH = Math.min(viewportH, totalHeight);
+              const sH = Math.round(sliceCssH * scaleY);
+              ctx.drawImage(img, 0, 0, img.width, sH, 0, 0, masterCanvas.width, sH);
+              paintedCssY = sliceCssH;
+            } else if (slice.isLast) {
+              const remainingCssH = totalHeight - paintedCssY;
+              if (remainingCssH > 0) {
+                const sH = Math.round(remainingCssH * scaleY);
+                const sy = Math.max(0, img.height - sH);
+                const dy = Math.round(paintedCssY * scaleY);
+                ctx.drawImage(img, 0, sy, img.width, sH, 0, dy, masterCanvas.width, sH);
+                paintedCssY += remainingCssH;
+              }
+            } else {
+              const sliceCssH = viewportH;
+              const sH = Math.round(sliceCssH * scaleY);
+              const dy = Math.round(paintedCssY * scaleY);
+              ctx.drawImage(img, 0, 0, img.width, sH, 0, dy, masterCanvas.width, sH);
+              paintedCssY += sliceCssH;
+            }
+          }
+
+          return masterCanvas;
+        }
+      } else {
+        throw new Error("browser.tabs.captureVisibleTab no disponible");
+      }
+
+    } catch (nativeErr) {
+      console.warn("Captura del compositor no disponible, ejecutando html2canvas calibrado:", nativeErr);
+
+      // Calibrar SVGs para preservar su aspect-ratio exacto (xMidYMid meet)
+      frameDoc.querySelectorAll('svg').forEach(svg => {
+        if (!svg.getAttribute('preserveAspectRatio')) {
+          svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        }
+        try {
+          const b = svg.getBoundingClientRect();
+          if (b.width > 0 && b.height > 0) {
+            if (!svg.getAttribute('width')) svg.setAttribute('width', Math.round(b.width));
+            if (!svg.getAttribute('height')) svg.setAttribute('height', Math.round(b.height));
+          }
+        } catch (_) {}
+      });
+
+      const body = frameDoc.body;
+      const docEl = frameDoc.documentElement;
+      const contentW = Math.max(docEl.clientWidth, body.clientWidth);
+      const contentH = Math.max(docEl.scrollHeight, body.scrollHeight);
+
+      return await window.html2canvas(body, {
+        useCORS: true,
+        allowTaint: true,
+        scale: 1, // 1:1 estricto para evitar deformar círculos o iconos
+        width: contentW,
+        height: contentH,
+        windowWidth: contentW, // CRÍTICO: windowWidth == width evita estiramiento horizontal
+        windowHeight: contentH,
+        scrollX: 0,
+        scrollY: 0,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+    } finally {
+      // Restaurar interfaz del editor pase lo que pase
+      header.style.display = origHeaderDisplay;
+      guide.style.display = origGuideDisplay;
+      workspace.style.height = origWorkspaceHeight;
+    }
+  }
 
   // A. Descargar PDF Fiel
   btnEditorPdf.addEventListener('click', async () => {
     try {
-      showExportModal("Generando PDF Fiel con tus ediciones...", "Procesando resolución...", 30);
+      showExportModal("Generando PDF Fiel con tus ediciones...", "Iniciando captura sin distorsión...", 20);
 
-      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
-      const targetEl = frameDoc.documentElement;
-
-      // Desactivar temporalmente cursores de edición
-      frameDoc.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
-
-      showExportModal("Renderizando vista con fidelidad visual exacta...", "Compilando canvas...", 60);
-
-      const canvas = await window.html2canvas(targetEl, {
-        useCORS: true,
-        allowTaint: true,
-        scale: 2,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
+      const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando PDF Fiel...", msg, pct));
 
       showExportModal("Compilando archivo PDF...", "Aplicando márgenes ejecutivos...", 85);
 
       const { jsPDF } = window.jspdf;
-      const isLandscape = canvas.width >= canvasHeight(canvas);
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+
+      const isLandscape = canvasWidth >= canvasHeight;
       const orientation = isLandscape ? 'landscape' : 'portrait';
       const pageW = isLandscape ? 297 : 210;
       const pageH = isLandscape ? 210 : 297;
@@ -393,21 +563,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         format: 'a4'
       });
 
-      const scale = Math.min(usableW / canvas.width, usableH / canvas.height);
-      const renderW = canvas.width * scale;
-      const renderH = canvas.height * scale;
-      const posX = margin + (usableW - renderW) / 2;
-      const posY = margin + (usableH - renderH) / 2;
+      const isSingleScreen = (canvasHeight <= (canvasWidth * 1.45)) || isLandscape;
 
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', posX, posY, renderW, renderH);
+      if (isSingleScreen) {
+        // Escala uniforme que preserva 100% de la proporción nativa sin deformar ni estirar
+        const scale = Math.min(usableW / canvasWidth, usableH / canvasHeight);
+        const renderW = canvasWidth * scale;
+        const renderH = canvasHeight * scale;
+        const posX = margin + (usableW - renderW) / 2;
+        const posY = margin + (usableH - renderH) / 2;
+
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', posX, posY, renderW, renderH);
+
+      } else {
+        // Documento largo: paginación secuencial limpia
+        const scale = usableW / canvasWidth;
+        const sliceHeightPx = usableH / scale;
+
+        let currentY = 0;
+        let pageIndex = 0;
+
+        while (currentY < canvasHeight) {
+          if (pageIndex > 0) {
+            pdf.addPage('a4', 'portrait');
+          }
+
+          const currentSliceH = Math.min(sliceHeightPx, canvasHeight - currentY);
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvasWidth;
+          pageCanvas.height = currentSliceH;
+
+          const pctx = pageCanvas.getContext('2d');
+          pctx.drawImage(canvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
+
+          const pageDataUrl = pageCanvas.toDataURL('image/png');
+          const renderH = currentSliceH * scale;
+
+          pdf.addImage(pageDataUrl, 'PNG', margin, margin, usableW, renderH);
+
+          currentY += sliceHeightPx;
+          pageIndex++;
+        }
+      }
 
       const filename = sanitizeName(cloneData ? cloneData.title : 'documento_editado', 'pdf');
       pdf.save(filename);
 
       hideExportModal();
       showToast(`¡PDF descargado con éxito! (${filename})`);
-
-      // Restaurar modo activo
       setTool(activeTool);
 
     } catch (err) {
@@ -421,17 +624,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // B. Exportar a Word (.doc enriquecido / editable)
   btnEditorDocx.addEventListener('click', async () => {
     try {
-      showExportModal("Generando documento Word (.doc)...", "Extrayendo contenido estructurado...", 40);
+      showExportModal("Generando documento Word (.doc)...", "Capturando portada fiel...", 25);
 
-      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
-      const targetEl = frameDoc.body;
-
-      // Capturar vista en miniatura
-      const canvas = await window.html2canvas(targetEl, {
-        scale: 1.5,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
+      const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando documento Word...", msg, pct));
 
       const visualSnapshotUrl = canvas.toDataURL('image/png');
       const rawBase64 = visualSnapshotUrl.replace(/^data:image\/[a-z]+;base64,/, '');
@@ -440,9 +635,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       const title = (cloneData && cloneData.title) ? cloneData.title : 'Documento Web Editado';
       const today = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
 
-      // Extraer bloques de texto editados
+      // Calcular dimensiones exactas en pulgadas para Word para preservar 100% el aspecto original
+      const aspect = canvas.width / (canvas.height || 1);
+      let imgWinches = 6.6;
+      let imgHinches = imgWinches / aspect;
+      if (imgHinches > 8.0) {
+        imgHinches = 8.0;
+        imgWinches = imgHinches * aspect;
+      }
+
+      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
       const blocks = [];
-      targetEl.querySelectorAll('h1, h2, h3, h4, p, table, ul, ol').forEach(el => {
+      frameDoc.body.querySelectorAll('h1, h2, h3, h4, p, table, ul, ol').forEach(el => {
         const tag = el.tagName.toLowerCase();
         const text = el.innerText ? el.innerText.trim() : '';
         if (!text && tag !== 'table') return;
@@ -467,7 +671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1e293b; }
             h1 { font-size: 20pt; color: #0f172a; margin-bottom: 6pt; }
             .card { background-color: #f8fafc; border-left: 3.5pt solid #2563eb; padding: 8pt 12pt; margin-bottom: 12pt; }
-            img.cover { width: 6.8in; max-width: 6.8in; height: auto; border: 1pt solid #cbd5e1; display: block; margin: 0 auto; }
+            img.cover { width: ${imgWinches.toFixed(2)}in; height: ${imgHinches.toFixed(2)}in; border: 1pt solid #cbd5e1; display: block; margin: 0 auto; }
           </style>
         </head>
         <body>
@@ -478,8 +682,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               <div><strong>Fecha:</strong> ${today} — Editado con BWD Creador Inteligente</div>
             </div>
             <div style="text-align: center; margin-bottom: 14pt;">
-              <div style="font-weight: bold; color: #2563eb; font-size: 8.5pt; text-transform: uppercase; margin-bottom: 4pt;">Vista Visual Editada</div>
-              <img class="cover" src="snapshot_cover.png" alt="Vista editada" />
+              <div style="font-weight: bold; color: #2563eb; font-size: 8.5pt; text-transform: uppercase; margin-bottom: 4pt;">Vista Visual Editada (Proporción Fiel)</div>
+              <img class="cover" width="${imgWinches.toFixed(2)}in" height="${imgHinches.toFixed(2)}in" src="snapshot_cover.png" alt="Vista editada" />
             </div>
             <div style="page-break-before: always; margin-top: 14pt;">
               <h2 style="color: #1e40af; border-bottom: 2pt solid #2563eb; padding-bottom: 4pt;">Contenido Editado</h2>
@@ -517,30 +721,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       triggerDownloadBlob(blob, filename);
       hideExportModal();
       showToast(`¡Documento Word guardado! (${filename})`);
+      setTool(activeTool);
 
     } catch (err) {
       console.error("Error al exportar Word:", err);
       hideExportModal();
       showToast("Error al exportar a Word.");
+      setTool(activeTool);
     }
   });
 
   // C. Descargar PNG HD
   btnEditorPng.addEventListener('click', async () => {
     try {
-      showExportModal("Generando imagen PNG HD...", "Renderizando página completa...", 50);
+      showExportModal("Generando imagen PNG HD...", "Iniciando renderizado fiel...", 30);
 
-      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
-      const targetEl = frameDoc.documentElement;
-
-      frameDoc.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
-
-      const canvas = await window.html2canvas(targetEl, {
-        useCORS: true,
-        scale: 2,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
+      const canvas = await captureEditorCanvas((msg, pct) => showExportModal("Generando imagen PNG HD...", msg, pct));
 
       const dataUrl = canvas.toDataURL('image/png');
       const filename = sanitizeName(cloneData ? cloneData.title : 'captura_editada', 'png');

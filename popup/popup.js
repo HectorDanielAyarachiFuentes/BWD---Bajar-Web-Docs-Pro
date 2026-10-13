@@ -954,7 +954,9 @@ function initEditorLauncher() {
           html: document.documentElement.outerHTML,
           title: document.title || 'Página Web',
           url: window.location.href,
-          baseURI: document.baseURI || window.location.href
+          baseURI: document.baseURI || window.location.href,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight
         };
       });
 
