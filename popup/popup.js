@@ -229,13 +229,13 @@ async function executeInPage(func, args = []) {
 }
 
 // ----------------------------------------------------------------------------
-// 3. Exportar PDF Fiel (Motor Nativo Firefox + Fallback jsPDF Alta Fidelidad)
+// 3. Exportar PDF Fiel (Motor Visual de Alta Fidelidad y Proporción Real)
 // ----------------------------------------------------------------------------
 
 btnPdfVisual.addEventListener('click', async () => {
   try {
     setBusy(true);
-    setProgress(20, "Preparando página para exportación...", 'busy');
+    setProgress(20, "Preparando página para exportación fiel...", 'busy');
 
     const clean = cleanDomCheckbox.checked;
     const expand = expandScrollCheckbox.checked;
@@ -281,43 +281,28 @@ btnPdfVisual.addEventListener('click', async () => {
       }, [{ clean, expand }]);
     }
 
-    setProgress(65, "Generando PDF con fidelidad de color y márgenes...", 'busy');
+    setProgress(55, "Capturando diseño visual exacto en alta resolución...", 'busy');
+
+    // Medir dimensiones del documento en la página
+    const metrics = await executeInPage(() => {
+      window.scrollTo(0, 0);
+      return {
+        title: document.title || 'documento_web',
+        width: Math.max(document.documentElement.clientWidth, window.innerWidth),
+        height: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth
+      };
+    });
+
+    const isSingleScreen = !metrics || metrics.height <= (metrics.viewportHeight + 50);
     const filename = sanitizeFilename(tab.title, 'pdf');
 
-    // Intentar motor nativo de Firefox saveAsPDF
-    let nativeSuccess = false;
-    if (typeof browser.tabs.saveAsPDF === 'function') {
-      try {
-        const pageSettings = {
-          toFileName: filename,
-          showBackgroundColors: true,
-          showBackgroundImages: true,
-          shrinkToFit: true,
-          headerLeft: "",
-          headerCenter: "",
-          headerRight: "",
-          footerLeft: "",
-          footerCenter: "",
-          footerRight: ""
-        };
+    let finalCanvas = null;
 
-        const saveStatus = await browser.tabs.saveAsPDF(pageSettings);
-
-        if (saveStatus === 'saved' || saveStatus === 'replaced') {
-          nativeSuccess = true;
-          setProgress(100, `¡PDF fiel guardado! (${filename})`, 'success');
-        } else if (saveStatus === 'canceled') {
-          nativeSuccess = true;
-          setProgress(0, "Guardado cancelado por el usuario", 'busy');
-        }
-      } catch (nativeErr) {
-        console.warn("Motor nativo saveAsPDF falló, activando motor gráfico de respaldo:", nativeErr);
-      }
-    }
-
-    // Fallback de alta fidelidad: Motor Gráfico jsPDF + Captura de lienzo
-    if (!nativeSuccess) {
-      setProgress(75, "Compilando PDF vectorizado de alta resolución...", 'busy');
+    if (isSingleScreen) {
+      // Caso 1: Pantalla completa fija (como Facebook Login, Landing, Portada)
+      setProgress(70, "Procesando proporciones originales de pantalla...", 'busy');
       const captureDataUrl = await captureTabImage(tab, 'png');
 
       const img = new Image();
@@ -327,39 +312,117 @@ btnPdfVisual.addEventListener('click', async () => {
         img.src = captureDataUrl;
       });
 
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: 'a4'
-      });
+      finalCanvas = document.createElement('canvas');
+      finalCanvas.width = img.width;
+      finalCanvas.height = img.height;
+      const ctx = finalCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+    } else {
+      // Caso 2: Página larga con desplazamiento continuo
+      setProgress(60, "Capturando secciones completas de la página...", 'busy');
+      const totalHeight = Math.min(metrics.height, 12000);
+      const viewportH = metrics.viewportHeight;
 
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const imgWidth = pageWidth;
-      const imgHeight = (img.height * pageWidth) / img.width;
+      const slices = [];
+      let currentY = 0;
+      const step = viewportH;
 
-      if (imgHeight <= pageHeight) {
-        pdf.addImage(img, 'PNG', 0, 0, imgWidth, imgHeight);
-      } else {
-        let heightLeft = imgHeight;
-        let position = 0;
+      while (currentY < totalHeight) {
+        await executeInPage((y) => window.scrollTo(0, y), [currentY]);
+        await new Promise(r => setTimeout(r, 120));
 
-        pdf.addImage(img, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        const sliceUrl = await captureTabImage(tab, 'png');
+        slices.push({ url: sliceUrl, y: currentY });
 
-        while (heightLeft > 0) {
-          position -= pageHeight;
-          pdf.addPage();
-          pdf.addImage(img, 'PNG', 0, position, imgWidth, imgHeight);
-          heightLeft -= pageHeight;
-        }
+        currentY += step;
       }
 
-      const pdfBlob = pdf.output('blob');
-      await triggerDownload(pdfBlob, filename);
-      setProgress(100, `¡PDF fiel guardado con éxito! (${filename})`, 'success');
+      await executeInPage(() => window.scrollTo(0, 0));
+
+      finalCanvas = document.createElement('canvas');
+      finalCanvas.width = metrics.viewportWidth;
+      finalCanvas.height = totalHeight;
+      const ctx = finalCanvas.getContext('2d');
+
+      for (const slice of slices) {
+        const img = new Image();
+        await new Promise((res, rej) => {
+          img.onload = res;
+          img.onerror = rej;
+          img.src = slice.url;
+        });
+        ctx.drawImage(img, 0, slice.y, metrics.viewportWidth, slice.y + viewportH > totalHeight ? totalHeight - slice.y : viewportH);
+      }
     }
+
+    setProgress(85, "Compilando PDF con proporción nativa y márgenes ejecutivos...", 'busy');
+
+    const { jsPDF } = window.jspdf;
+    const canvasWidth = finalCanvas.width;
+    const canvasHeight = finalCanvas.height;
+
+    // Detectar automáticamente la orientación original (Horizontal para diseño desktop, Vertical para documentos largos)
+    const isLandscape = canvasWidth >= canvasHeight;
+    const orientation = isLandscape ? 'landscape' : 'portrait';
+    const pageW = isLandscape ? 297 : 210; // A4 mm
+    const pageH = isLandscape ? 210 : 297; // A4 mm
+
+    const margin = 8; // Margen sobrio y elegante de 8mm
+    const usableW = pageW - (margin * 2);
+    const usableH = pageH - (margin * 2);
+
+    const pdf = new jsPDF({
+      orientation: orientation,
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    if (isSingleScreen || isLandscape) {
+      // Renderizado proporcional perfecto en 1 sola página:
+      // Conserva exactamente la proporción de aspecto del sitio original (sin deformar ni cortar)
+      const scale = Math.min(usableW / canvasWidth, usableH / canvasHeight);
+      const renderW = canvasWidth * scale;
+      const renderH = canvasHeight * scale;
+      const posX = margin + (usableW - renderW) / 2;
+      const posY = margin + (usableH - renderH) / 2;
+
+      const imgData = finalCanvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', posX, posY, renderW, renderH);
+
+    } else {
+      // Página larga vertical: Paginación secuencial limpia sin cortar elementos
+      const scale = usableW / canvasWidth;
+      const sliceHeightPx = usableH / scale;
+
+      let currentY = 0;
+      let pageIndex = 0;
+
+      while (currentY < canvasHeight) {
+        if (pageIndex > 0) {
+          pdf.addPage('a4', 'portrait');
+        }
+
+        const currentSliceH = Math.min(sliceHeightPx, canvasHeight - currentY);
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvasWidth;
+        pageCanvas.height = currentSliceH;
+
+        const pctx = pageCanvas.getContext('2d');
+        pctx.drawImage(finalCanvas, 0, currentY, canvasWidth, currentSliceH, 0, 0, canvasWidth, currentSliceH);
+
+        const pageDataUrl = pageCanvas.toDataURL('image/png');
+        const renderH = currentSliceH * scale;
+
+        pdf.addImage(pageDataUrl, 'PNG', margin, margin, usableW, renderH);
+
+        currentY += sliceHeightPx;
+        pageIndex++;
+      }
+    }
+
+    setProgress(95, "Descargando documento PDF fiel...", 'busy');
+    const pdfBlob = pdf.output('blob');
+    await triggerDownload(pdfBlob, filename);
 
     // Restaurar elementos modificados en el DOM
     await executeInPage(() => {
@@ -369,6 +432,7 @@ btnPdfVisual.addEventListener('click', async () => {
       });
     });
 
+    setProgress(100, `¡PDF fiel descargado con éxito! (${filename})`, 'success');
     setBusy(false);
 
   } catch (err) {
