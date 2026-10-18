@@ -1625,9 +1625,35 @@ function initEditorLauncher() {
   });
 }
 
+function initSpotlightCards() {
+  const cards = document.querySelectorAll('.action-row');
+  cards.forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      card.style.setProperty('--mouse-x', `${x}px`);
+      card.style.setProperty('--mouse-y', `${y}px`);
+    });
+  });
+}
+
+function initSettingsCollapsible() {
+  const collapsible = document.getElementById('settingsCollapsible');
+  const trigger = document.getElementById('btnToggleSettings');
+  if (!collapsible || !trigger) return;
+
+  trigger.addEventListener('click', (e) => {
+    e.preventDefault();
+    collapsible.classList.toggle('is-open');
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initTabDetection();
   initTooltips();
   initTabs();
   initEditorLauncher();
+  initSpotlightCards();
+  initSettingsCollapsible();
 });

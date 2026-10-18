@@ -9,8 +9,9 @@
   --bg-surface-elevated: #111422;
   --bg-surface-hover: #191e30;
 
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-glow: rgba(56, 189, 248, 0.3);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.16);
+  --border-glow: rgba(56, 189, 248, 0.4);
   --border-active: #0284c7;
 
   --text-main: #f8fafc;
@@ -22,6 +23,7 @@
   --blue-hover: #1d4ed8;
 
   --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -39,7 +41,7 @@ body.editor-body {
   flex-direction: column;
   background-color: var(--bg-deep);
   color: var(--text-main);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
 }
 
@@ -47,10 +49,10 @@ body.editor-body {
    1. Barra de Herramientas Flotante Glassmorphism
    -------------------------------------------------------------------------- */
 .editor-header {
-  height: 60px;
-  background: rgba(11, 12, 19, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  height: 64px;
+  background: rgba(8, 9, 15, 0.88);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
@@ -65,6 +67,12 @@ body.editor-body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.header-inner::-webkit-scrollbar {
+  display: none;
 }
 
 /* Marca */
@@ -72,20 +80,21 @@ body.editor-body {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 240px;
+  flex-shrink: 0;
 }
 
 .brand-badge-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
   background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: 0 0 16px rgba(2, 132, 199, 0.35);
+  box-shadow: 0 0 16px rgba(2, 132, 199, 0.4);
   flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .brand-text-block {
@@ -103,14 +112,27 @@ body.editor-body {
 .brand-name {
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: #fff;
+  white-space: nowrap;
+}
+
+.pro-badge.glow-cyan {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+  letter-spacing: 0.05em;
 }
 
 .page-origin {
   font-size: 11px;
   color: var(--text-dim);
-  max-width: 220px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -121,10 +143,11 @@ body.editor-body {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(17, 20, 34, 0.7);
-  padding: 4px;
-  border-radius: 10px;
+  background: rgba(18, 20, 32, 0.75);
+  padding: 4px 6px;
+  border-radius: 11px;
   border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
 .tool-btn {
@@ -134,26 +157,28 @@ body.editor-body {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.18s var(--ease-spring);
   user-select: none;
+  white-space: nowrap !important;
+  flex-shrink: 0;
 }
 
 .tool-btn:hover {
-  background: var(--bg-surface-hover);
+  background: rgba(255, 255, 255, 0.06);
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .tool-btn.is-active {
-  background: rgba(37, 99, 235, 0.18);
-  border-color: #3b82f6;
+  background: rgba(37, 99, 235, 0.2);
+  border-color: rgba(59, 130, 246, 0.6);
   color: #93c5fd;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.3);
 }
 
 .tool-btn-special {
@@ -163,16 +188,18 @@ body.editor-body {
 }
 
 .tool-btn-special:hover {
-  background: rgba(56, 189, 248, 0.16);
+  background: rgba(56, 189, 248, 0.18);
   border-color: #38bdf8;
   color: #fff;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.3);
 }
 
 .toolbox-divider {
   width: 1px;
   height: 20px;
-  background: var(--border-subtle);
-  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 3px;
+  flex-shrink: 0;
 }
 
 /* Acciones de Exportación Directa */
@@ -180,47 +207,86 @@ body.editor-body {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.action-btn-glow {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
-  box-shadow: 0 0 16px rgba(37, 99, 235, 0.4) !important;
+  flex-shrink: 0;
 }
 
 .header-actions .imp-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 7px;
+  font-size: 12.5px;
   font-weight: 600;
-  padding: 7px 13px;
-  border-radius: 7px;
+  padding: 8px 14px;
+  border-radius: 8px;
   cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  transition: all 0.15s ease;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+  white-space: nowrap !important;
+  flex-shrink: 0;
+  transition: all 0.18s var(--ease-fluid);
 }
 
 .header-actions .imp-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.header-actions .imp-btn:active {
+  transform: translateY(0);
+}
+
+/* Botón Primario PDF */
+#btnEditorPdf {
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 16px rgba(37, 99, 235, 0.45) !important;
+}
+
+#btnEditorPdf:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 0 22px rgba(37, 99, 235, 0.6) !important;
+}
+
+/* Botón Word */
+#btnEditorDocx:hover {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: #6ee7b7;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
+}
+
+/* Botón PNG */
+#btnEditorPng:hover {
+  background: rgba(168, 85, 247, 0.14);
+  border-color: rgba(168, 85, 247, 0.45);
+  color: #d8b4fe;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
+}
+
+/* Botón HTML */
+#btnEditorHtml:hover {
+  background: rgba(249, 115, 22, 0.14);
+  border-color: rgba(249, 115, 22, 0.45);
+  color: #fdba74;
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.25);
 }
 
 /* --------------------------------------------------------------------------
    2. Barra de Guía y Contador de Cambios
    -------------------------------------------------------------------------- */
 .editor-guide-bar {
-  height: 32px;
-  background: #08090e;
+  height: 36px;
+  background: rgba(8, 9, 14, 0.95);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  font-size: 11px;
+  padding: 0 24px;
+  font-size: 11.5px;
   color: var(--text-muted);
   flex-shrink: 0;
+  backdrop-filter: blur(10px);
 }
 
 .guide-tip {
@@ -239,7 +305,13 @@ body.editor-body {
 
 .changes-counter {
   font-variant-numeric: tabular-nums;
-  color: var(--text-dim);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 11px;
 }
 
 /* --------------------------------------------------------------------------
@@ -248,7 +320,7 @@ body.editor-body {
 .editor-workspace {
   flex: 1;
   width: 100%;
-  height: calc(100vh - 92px);
+  height: calc(100vh - 100px);
   background: #020305;
   display: flex;
   justify-content: center;
@@ -283,29 +355,29 @@ body.editor-body {
   background: rgba(15, 23, 42, 0.95);
   border: 1px solid rgba(56, 189, 248, 0.4);
   color: #f8fafc;
-  padding: 10px 20px;
+  padding: 10px 22px;
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(56, 189, 248, 0.2);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 18px rgba(56, 189, 248, 0.25);
+  backdrop-filter: blur(12px);
   z-index: 2000;
   animation: toastSlideUp 0.25s var(--ease-spring);
 }
 
 .toast-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: #10b981;
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: bold;
 }
 
@@ -321,7 +393,7 @@ body.editor-body {
 }
 
 /* --------------------------------------------------------------------------
-   5. Modal de Exportación
+   5. Modal de Exportación (Glassmorphic Card)
    -------------------------------------------------------------------------- */
 .export-modal {
   position: fixed;
@@ -329,8 +401,8 @@ body.editor-body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -338,10 +410,11 @@ body.editor-body {
 }
 
 .export-modal-card {
-  width: 380px;
-  padding: 24px;
-  border-radius: 14px;
-  background: #0b0c13;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+  width: 400px;
+  padding: 26px;
+  border-radius: 16px;
+  background: rgba(14, 16, 26, 0.92);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(56, 189, 248, 0.15);
+  backdrop-filter: blur(16px);
 }

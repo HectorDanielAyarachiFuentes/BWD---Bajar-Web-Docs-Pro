@@ -1,29 +1,42 @@
 /* ==========================================================================
-   BWD — Executive & Enterprise Edition Stylesheet
-   Focus: Sobriety, calm luxury, typographic balance, precision UX.
-   Ideal for corporate, office, and professional environments.
+   BWD — Master Suite Stylesheet (UI Pro Max + Impeccable + Skill-UL)
+   Directiva Frontend Embellecedor:
+   - Obsidian Deep (#050508) + Frosted Glassmorphism Header
+   - Spotlight Action Cards con acentos luminosos y micro-animaciones
+   - Switches Apple/VisionOS de precisión matemática (4/8pt grid)
+   - Shimmer animado continuo y tags con destello
    ========================================================================== */
 
 :root {
-  --bg-app: #111217;
-  --bg-surface: #161820;
-  --bg-surface-hover: #1c1f2a;
-  --bg-surface-active: #14161d;
-  
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-medium: rgba(255, 255, 255, 0.12);
-  --border-focus: #3b82f6;
+  /* Obsidian & High-End Darks */
+  --pro-bg-deep: #050508;
+  --pro-bg-surface: #0b0c13;
+  --pro-bg-elevated: #111422;
+  --pro-bg-card: rgba(18, 20, 32, 0.72);
+  --pro-bg-glass: rgba(10, 11, 18, 0.82);
 
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
+  /* Spectral Accents */
+  --pro-accent-blue: #2563eb;
+  --pro-accent-cyan: #00f0ff;
+  --pro-accent-emerald: #10b981;
+  --pro-accent-purple: #a855f7;
+  --pro-accent-amber: #f97316;
 
-  --accent-blue: #2563eb;
-  --accent-blue-hover: #1d4ed8;
-  --accent-blue-soft: rgba(37, 99, 235, 0.12);
+  /* Precision Borders */
+  --pro-border-subtle: rgba(255, 255, 255, 0.08);
+  --pro-border-medium: rgba(255, 255, 255, 0.16);
+  --pro-border-active: rgba(56, 189, 248, 0.45);
 
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
-  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Typography Colors WCAG AAA */
+  --pro-text-main: #f8fafc;
+  --pro-text-muted: #94a3b8;
+  --pro-text-dim: #64748b;
+
+  /* Shadows & Easing */
+  --pro-shadow-card: 0 8px 24px -6px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--pro-border-subtle);
+  --pro-shadow-glow: 0 0 25px -5px rgba(37, 99, 235, 0.35);
+  --pro-ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
+  --pro-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 * {
@@ -33,13 +46,32 @@
   -webkit-font-smoothing: antialiased;
 }
 
+html, body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 body {
-  width: 350px;
-  background-color: var(--bg-app);
-  color: var(--text-main);
-  font-family: var(--font-family);
+  width: 375px;
+  max-height: 575px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  background-color: var(--pro-bg-deep);
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.12) 0%, transparent 65%),
+    radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.06) 0%, transparent 50%);
+  color: var(--pro-text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   user-select: none;
-  overflow: hidden;
 }
 
 .app-container {
@@ -48,30 +80,34 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   1. Header Corporativo
+   1. Header Glassmorphism con Acento Ejecutivo
    -------------------------------------------------------------------------- */
 .app-header {
-  padding: 12px 14px;
-  background-color: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 12px 16px;
+  background: var(--pro-bg-glass);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--pro-border-subtle);
+  position: relative;
+  z-index: 20;
 }
 
 .brand-group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .brand-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background-color: #1e222e;
-  border: 1px solid var(--border-medium);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.25) 0%, rgba(139, 92, 246, 0.2) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #93c5fd;
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.3);
   flex-shrink: 0;
 }
 
@@ -89,36 +125,48 @@ body {
 }
 
 .brand-title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .version-badge {
   font-size: 10px;
-  font-weight: 500;
-  color: var(--text-dim);
-  background-color: rgba(255, 255, 255, 0.05);
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--border-subtle);
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  letter-spacing: 0.04em;
 }
 
 .domain-indicator {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--pro-text-muted);
 }
 
 .domain-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
   flex-shrink: 0;
+  animation: pulseDot 2.2s infinite;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
 .domain-text {
@@ -126,114 +174,225 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 260px;
+  font-weight: 500;
 }
 
 /* --------------------------------------------------------------------------
-   2. Main Layout & Action Stack
+   2. Segmented Capsule Navigation (Tabs Pro)
+   -------------------------------------------------------------------------- */
+.app-tab-nav {
+  display: flex;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--pro-border-subtle);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 4px;
+  margin: 10px 14px 4px;
+}
+
+.tab-nav-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--pro-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s var(--pro-ease-fluid);
+}
+
+.tab-nav-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tab-nav-btn.is-active {
+  background: rgba(255, 255, 255, 0.09);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.tab-glow-pill {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(139, 92, 246, 0.2));
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  letter-spacing: 0.06em;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+}
+
+/* --------------------------------------------------------------------------
+   3. Main Layout & Action Stack (Spotlight Effect & Micro-Animations)
    -------------------------------------------------------------------------- */
 .app-main {
-  padding: 12px 14px;
+  padding: 10px 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
 .section-label {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-  padding-left: 2px;
+  letter-spacing: 0.08em;
+  color: var(--pro-text-dim);
+  padding: 2px 4px 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .action-stack {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
+  margin-bottom: 14px;
 }
 
-/* Action Rows */
+/* Action Rows (Tarjetas Spotlight) */
 .action-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
+  background: var(--pro-bg-card);
+  border: 1px solid var(--pro-border-subtle);
+  border-radius: 10px;
   cursor: pointer;
   outline: none;
   text-align: left;
   width: 100%;
-  transition: background-color 0.15s var(--ease-smooth),
-              border-color 0.15s var(--ease-smooth),
-              transform 0.15s var(--ease-smooth);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s var(--pro-ease-fluid),
+              border-color 0.2s var(--pro-ease-fluid),
+              background 0.2s var(--pro-ease-fluid),
+              box-shadow 0.2s var(--pro-ease-fluid);
+}
+
+.action-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.action-row::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: radial-gradient(
+    180px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(255, 255, 255, 0.08),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.action-row:hover::after {
+  opacity: 1;
+}
+
+.action-row > * {
+  position: relative;
+  z-index: 2;
 }
 
 .action-row:hover {
-  background-color: var(--bg-surface-hover);
-  border-color: var(--border-medium);
-  transform: translateY(-1px);
+  background: rgba(26, 30, 48, 0.85);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -8px rgba(0, 0, 0, 0.8);
 }
 
 .action-row:active {
-  background-color: var(--bg-surface-active);
   transform: translateY(0);
 }
 
 .action-row:focus-visible {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35);
 }
 
 .action-row.is-disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   pointer-events: none;
 }
 
+/* Tarjeta Recomendada con Aura Luminosa */
 .action-row.is-recommended {
-  border-color: rgba(37, 99, 235, 0.3);
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(18, 20, 32, 0.75) 100%);
+  box-shadow: 0 0 20px -6px rgba(37, 99, 235, 0.3);
 }
 
 .action-row.is-recommended:hover {
-  border-color: rgba(37, 99, 235, 0.5);
+  border-color: rgba(56, 189, 248, 0.7);
+  box-shadow: 0 12px 30px -8px rgba(37, 99, 235, 0.45);
 }
 
-/* Icon Boxes */
+/* Cajas de Iconos con Gradientes Vívidos */
 .action-icon-box {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid var(--border-subtle);
+  transition: transform 0.2s var(--pro-ease-spring);
+}
+
+.action-row:hover .action-icon-box {
+  transform: scale(1.08);
 }
 
 .icon-pdf {
-  background-color: rgba(37, 99, 235, 0.1);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.28), rgba(37, 99, 235, 0.08));
   color: #60a5fa;
-  border-color: rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.25);
 }
 
 .icon-doc {
-  background-color: rgba(16, 185, 129, 0.1);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(16, 185, 129, 0.08));
   color: #34d399;
-  border-color: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.25);
 }
 
 .icon-png {
-  background-color: rgba(168, 85, 247, 0.1);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(168, 85, 247, 0.08));
   color: #c084fc;
-  border-color: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
 }
 
 .icon-html {
-  background-color: rgba(249, 115, 22, 0.1);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.28), rgba(249, 115, 22, 0.08));
   color: #fb923c;
-  border-color: rgba(249, 115, 22, 0.2);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.25);
 }
 
 .action-meta {
@@ -247,76 +406,148 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
 }
 
 .action-name {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-main);
+  color: #ffffff;
 }
 
 .action-summary {
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: 10.5px;
+  color: var(--pro-text-muted);
   line-height: 1.25;
 }
 
 .action-arrow {
-  color: var(--text-dim);
+  color: var(--pro-text-dim);
   display: flex;
   align-items: center;
-  transition: transform 0.15s var(--ease-smooth), color 0.15s var(--ease-smooth);
+  transition: transform 0.2s var(--pro-ease-fluid), color 0.2s var(--pro-ease-fluid);
 }
 
 .action-row:hover .action-arrow {
-  color: var(--text-muted);
-  transform: translateX(2px);
+  color: #38bdf8;
+  transform: translateX(3px);
 }
 
-/* Tag Pills */
+/* Badges con Destello (Skill-UL) */
 .tag-pill {
-  font-size: 10px;
-  font-weight: 500;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background-color: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-muted);
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--pro-border-subtle);
+  color: var(--pro-text-muted);
   white-space: nowrap;
 }
 
 .tag-pill.tag-primary {
-  background-color: var(--accent-blue-soft);
-  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.2);
+  border-color: rgba(59, 130, 246, 0.45);
   color: #93c5fd;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.25);
 }
 
 /* --------------------------------------------------------------------------
-   3. Panel de Ajustes / Preferencias (Compacto & Limpio)
+   4. Preferencias de Renderizado Colapsable (Skill-UL Spring Physics)
    -------------------------------------------------------------------------- */
-.settings-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 8px 10px;
+.settings-card.skill-collapsible {
+  margin-top: 2px;
+  margin-bottom: 12px;
+  background: rgba(14, 16, 26, 0.72);
+  border: 1px solid var(--pro-border-subtle);
+  border-radius: 12px;
+  padding: 0;
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.settings-header {
-  margin-bottom: 6px;
+.settings-card.skill-collapsible:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.settings-header.skill-collapsible-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: none;
+  cursor: pointer;
+  outline: none;
+  color: var(--pro-text-muted);
+  transition: background 0.15s ease;
+}
+
+.settings-header.skill-collapsible-trigger:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .settings-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.settings-trigger-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-pill-active {
   font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 1px 7px;
+  border-radius: 9999px;
+}
+
+.skill-collapsible-chevron {
+  color: var(--pro-text-dim);
+  transition: transform 0.3s var(--pro-ease-spring);
+}
+
+.settings-card.skill-collapsible.is-open .skill-collapsible-chevron {
+  transform: rotate(180deg);
+  color: #38bdf8;
+}
+
+.settings-card .skill-collapsible-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s var(--pro-ease-spring);
+}
+
+.settings-card.skill-collapsible.is-open .skill-collapsible-content {
+  grid-template-rows: 1fr;
+}
+
+.settings-card .skill-collapsible-inner {
+  overflow: hidden;
+  padding: 0 10px 8px 10px;
 }
 
 .settings-list {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .setting-item {
@@ -324,26 +555,27 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 5px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background 0.15s ease;
 }
 
-.setting-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.setting-item:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .setting-label {
   font-size: 11px;
-  color: var(--text-muted);
+  color: #cbd5e1;
+  font-weight: 500;
 }
 
-/* UI Switch Minimalista (estilo Apple macOS) */
+/* Switches de Precisión Matemática (Estilo Apple / VisionOS) */
 .ui-switch {
   position: relative;
-  width: 30px;
-  height: 16px;
+  width: 36px;
+  height: 20px;
   display: inline-block;
   flex-shrink: 0;
 }
@@ -358,45 +590,49 @@ body {
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background-color: #2a2e3a;
-  border-radius: 16px;
-  transition: background-color 0.2s var(--ease-smooth);
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  transition: background-color 0.25s var(--pro-ease-fluid), border-color 0.25s var(--pro-ease-fluid), box-shadow 0.25s var(--pro-ease-fluid);
 }
 
 .ui-switch-track:before {
   position: absolute;
   content: "";
-  height: 12px;
-  width: 12px;
+  height: 14px;
+  width: 14px;
   left: 2px;
   bottom: 2px;
-  background-color: #e2e8f0;
+  background-color: #ffffff;
   border-radius: 50%;
-  transition: transform 0.2s var(--ease-smooth);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.25s var(--pro-ease-spring);
 }
 
 .ui-switch input:checked + .ui-switch-track {
-  background-color: var(--accent-blue);
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.5);
 }
 
 .ui-switch input:checked + .ui-switch-track:before {
-  transform: translateX(14px);
-  background-color: #ffffff;
+  transform: translateX(16px);
 }
 
 /* --------------------------------------------------------------------------
-   4. Barra de Progreso y Estados
+   5. Barra de Progreso con Animación Shimmer (Skill-UL)
    -------------------------------------------------------------------------- */
 .progress-container {
-  padding: 8px 10px;
-  background-color: var(--bg-surface);
-  border: 1px solid rgba(37, 99, 235, 0.25);
-  border-radius: 6px;
-  animation: fadeIn 0.15s ease;
+  padding: 10px 14px;
+  background: rgba(18, 20, 32, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(2, 132, 199, 0.2);
+  animation: fadeIn 0.2s var(--pro-ease-fluid);
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-2px); }
+  from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -404,63 +640,77 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
-  margin-bottom: 5px;
+  font-size: 11.5px;
+  margin-bottom: 6px;
 }
 
 .progress-task {
-  color: var(--text-muted);
+  color: #e2e8f0;
+  font-weight: 500;
 }
 
 .progress-val {
-  font-weight: 600;
-  color: #93c5fd;
+  font-weight: 700;
+  color: #38bdf8;
 }
 
 .progress-track {
   width: 100%;
-  height: 4px;
-  background-color: #1e222d;
-  border-radius: 2px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
   overflow: hidden;
+  position: relative;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background-color: var(--accent-blue);
-  border-radius: 2px;
-  transition: width 0.25s var(--ease-smooth);
+  background: linear-gradient(90deg, #0284c7, #38bdf8, #8b5cf6, #0284c7);
+  background-size: 200% 100%;
+  border-radius: 9999px;
+  animation: skillShimmer 2s linear infinite;
+  transition: width 0.3s var(--pro-ease-fluid);
+}
+
+@keyframes skillShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* --------------------------------------------------------------------------
-   5. Footer & Estado General
+   6. Footer & Estado General
    -------------------------------------------------------------------------- */
 .app-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 0 0;
+  margin-top: 10px;
+  padding: 10px 0 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 11px;
-  color: var(--text-dim);
+  color: var(--pro-text-dim);
+  font-weight: 500;
 }
 
 .status-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: #64748b;
   flex-shrink: 0;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .status-indicator.is-busy .status-dot {
-  background-color: var(--accent-blue);
+  background-color: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: pulseDot 1.2s infinite;
 }
 
 .status-indicator.is-busy {
@@ -469,6 +719,7 @@ body {
 
 .status-indicator.is-success .status-dot {
   background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
 }
 
 .status-indicator.is-success {
@@ -477,125 +728,92 @@ body {
 
 .status-indicator.is-error .status-dot {
   background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
 }
 
 .status-indicator.is-error {
   color: #fca5a5;
 }
 
-/* Tooltip Discreto */
+/* Tooltip Premium Impeccable */
 .imp-tooltip {
   position: fixed;
-  background-color: #1c1f2a;
-  color: #f1f5f9;
+  background: rgba(15, 23, 42, 0.95);
+  color: #f8fafc;
   font-size: 11px;
-  line-height: 1.3;
-  padding: 5px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--border-medium);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  max-width: 240px;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6), 0 0 15px rgba(56, 189, 248, 0.15);
+  max-width: 250px;
   z-index: 9999;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  backdrop-filter: blur(8px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 /* --------------------------------------------------------------------------
-   6. Pestañas de Navegación y Panel Modo Creador
+   7. Panel Modo Creador (Tarjetas Beam Cinéticas)
    -------------------------------------------------------------------------- */
-.app-tab-nav {
-  display: flex;
-  background-color: #12131a;
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 4px 10px 0 10px;
-  gap: 6px;
-}
-
-.tab-nav-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 12px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.tab-nav-btn:hover {
-  color: var(--text-main);
-}
-
-.tab-nav-btn.is-active {
-  color: #38bdf8;
-  border-bottom-color: #38bdf8;
-  font-weight: 600;
-}
-
-.tab-glow-pill {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  letter-spacing: 0.05em;
-}
-
-/* Tarjeta Modo Creador en Popup */
 .editor-promo-card {
-  background: linear-gradient(145deg, #131722 0%, #0c0e14 100%);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  border-radius: 8px;
-  padding: 14px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(145deg, #10121d 0%, #06070a 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.15);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
 }
 
-.promo-badge-line {
-  display: flex;
+.editor-promo-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #00f0ff, #8b5cf6, #3b82f6);
 }
 
 .promo-badge-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 10.5px;
-  font-weight: 600;
-  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(56, 189, 248, 0.12);
+  background: rgba(56, 189, 248, 0.14);
   color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
 }
 
 .promo-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: #38bdf8;
-  box-shadow: 0 0 6px #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
 }
 
 .promo-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
   letter-spacing: -0.01em;
 }
 
 .promo-desc {
   font-size: 11.5px;
-  line-height: 1.4;
-  color: var(--text-muted);
+  line-height: 1.45;
+  color: var(--pro-text-muted);
 }
 
 .editor-features-ul {
@@ -604,19 +822,20 @@ body {
   margin: 4px 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
 }
 
 .editor-features-ul li {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: #cbd5e1;
+  gap: 9px;
+  font-size: 11.5px;
+  color: #e2e8f0;
+  padding: 4px 0;
 }
 
 .feat-icon {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .launch-editor-btn {
@@ -626,25 +845,24 @@ body {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 9px 14px;
+  padding: 11px 16px;
   background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
-  transition: all 0.18s ease;
+  box-shadow: 0 4px 18px rgba(2, 132, 199, 0.45);
+  transition: all 0.2s var(--pro-ease-fluid);
 }
 
 .launch-editor-btn:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.5);
+  filter: brightness(1.15);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(2, 132, 199, 0.6);
 }
 
 .launch-editor-btn:active {
   transform: translateY(0);
 }
-
