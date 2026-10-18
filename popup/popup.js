@@ -167,33 +167,69 @@ function formatErrorMessage(err) {
  * Basado en las soluciones de los repositorios de GitHub:
  * mosfor/fullpage-capture y mdn/webextensions-examples
  */
-async function captureTabImage(tab, format = 'png') {
+async function captureTabImage(tab, format = 'jpeg') {
   // 1. Intentar con el windowId numérico de la pestaña activa
   if (tab && typeof tab.windowId === 'number') {
     try {
-      return await browser.tabs.captureVisibleTab(tab.windowId, { format: format });
+      const res = await browser.tabs.captureVisibleTab(tab.windowId, { format: format });
+      if (res) return res;
     } catch (e) {
       console.warn("captureVisibleTab(windowId) no respondió, intentando fallback:", e);
     }
   }
 
-  // 2. Fallback: llamada directa sin windowId (estándar Firefox)
+  // 2. Fallback: llamada con null como windowId (Firefox WebExtensions estándar)
   try {
-    return await browser.tabs.captureVisibleTab({ format: format });
+    const res = await browser.tabs.captureVisibleTab(null, { format: format });
+    if (res) return res;
+  } catch (e) {
+    console.warn("captureVisibleTab(null) falló:", e);
+  }
+
+  // 3. Fallback: llamada directa sin parámetros
+  try {
+    const res = await browser.tabs.captureVisibleTab();
+    if (res) return res;
   } catch (e) {
     console.warn("captureVisibleTab() sin parámetros falló:", e);
   }
 
-  // 3. Fallback: API nativa exclusiva de Firefox browser.tabs.captureTab
+  // 4. Fallback: API nativa exclusiva de Firefox browser.tabs.captureTab
   if (typeof browser.tabs.captureTab === 'function' && tab && tab.id) {
     try {
-      return await browser.tabs.captureTab(tab.id, { format: format });
+      const res = await browser.tabs.captureTab(tab.id, { format: format });
+      if (res) return res;
     } catch (e) {
       console.warn("browser.tabs.captureTab() falló:", e);
     }
   }
 
   throw new Error("No fue posible capturar la pantalla. Verifica que la pestaña sea una página web accesible.");
+}
+
+async function applyPageBackground(tab) {
+  const bgEl = document.getElementById('pagePreviewBg');
+  if (!bgEl || !tab) return;
+
+  try {
+    let dataUrl = null;
+    try {
+      dataUrl = await captureTabImage(tab, 'jpeg');
+    } catch (_) {
+      try {
+        dataUrl = await captureTabImage(tab, 'png');
+      } catch (err2) {
+        console.warn("Captura de fondo no disponible:", err2);
+      }
+    }
+
+    if (dataUrl) {
+      bgEl.style.backgroundImage = `url("${dataUrl}")`;
+      bgEl.classList.add('is-loaded');
+    }
+  } catch (err) {
+    console.debug("applyPageBackground aviso:", err);
+  }
 }
 
 async function initTabDetection() {
@@ -206,6 +242,7 @@ async function initTabDetection() {
         statusTextEl.textContent = 'Las páginas internas del sistema no permiten exportación';
       } else {
         tabHostEl.textContent = urlObj.hostname || tab.title || 'Página web activa';
+        applyPageBackground(tab);
       }
     }
   } catch (e) {
@@ -1649,8 +1686,18 @@ function initSettingsCollapsible() {
   });
 }
 
+async function initLivePageBackground() {
+  try {
+    const tab = await getActiveTab();
+    if (tab) {
+      await applyPageBackground(tab);
+    }
+  } catch (_) {}
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initTabDetection();
+  initLivePageBackground();
   initTooltips();
   initTabs();
   initEditorLauncher();

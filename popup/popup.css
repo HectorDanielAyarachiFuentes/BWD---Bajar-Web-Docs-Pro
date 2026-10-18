@@ -12,8 +12,8 @@
   --pro-bg-deep: #050508;
   --pro-bg-surface: #0b0c13;
   --pro-bg-elevated: #111422;
-  --pro-bg-card: rgba(18, 20, 32, 0.72);
-  --pro-bg-glass: rgba(10, 11, 18, 0.82);
+  --pro-bg-card: rgba(14, 17, 28, 0.65);
+  --pro-bg-glass: rgba(10, 12, 22, 0.70);
 
   /* Spectral Accents */
   --pro-accent-blue: #2563eb;
@@ -72,11 +72,47 @@ body {
   color: var(--pro-text-main);
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   user-select: none;
+  position: relative;
+}
+
+/* --------------------------------------------------------------------------
+   Vista Previa Aérea de la Página con Efecto Glass Translúcido
+   -------------------------------------------------------------------------- */
+.page-preview-bg {
+  position: fixed;
+  inset: -15px;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  filter: blur(4px) brightness(0.68) contrast(110%);
+  transform: scale(1.05);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-fluid);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.page-preview-bg.is-loaded {
+  opacity: 1;
+}
+
+.page-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 50% 20%, rgba(8, 10, 20, 0.35) 0%, rgba(5, 5, 8, 0.75) 100%),
+    linear-gradient(180deg, rgba(8, 10, 20, 0.30) 0%, rgba(5, 5, 8, 0.78) 100%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 1;
+  pointer-events: none;
 }
 
 .app-container {
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 2;
 }
 
 /* --------------------------------------------------------------------------
@@ -275,6 +311,8 @@ body {
   width: 100%;
   position: relative;
   overflow: hidden;
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
   transition: transform 0.2s var(--pro-ease-fluid),
               border-color 0.2s var(--pro-ease-fluid),
               background 0.2s var(--pro-ease-fluid),
