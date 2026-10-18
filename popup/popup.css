@@ -214,16 +214,19 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   2. Segmented Capsule Navigation (Tabs Pro)
+   2. Segmented Capsule Navigation (Tabs Pro de Alto Contraste)
    -------------------------------------------------------------------------- */
 .app-tab-nav {
   display: flex;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid var(--pro-border-subtle);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 4px;
-  margin: 10px 14px 4px;
+  background: rgba(10, 12, 22, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 11px;
+  padding: 4px;
+  gap: 6px;
+  margin: 12px 14px 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .tab-nav-btn {
@@ -232,39 +235,52 @@ body {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 8px 10px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  color: var(--pro-text-muted);
-  font-size: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  color: #cbd5e1;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s var(--pro-ease-fluid);
+  user-select: none;
+}
+
+.tab-nav-btn svg {
   transition: all 0.2s var(--pro-ease-fluid);
 }
 
 .tab-nav-btn:hover {
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-0.5px);
 }
 
 .tab-nav-btn.is-active {
-  background: rgba(255, 255, 255, 0.09);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.35) 0%, rgba(30, 64, 175, 0.25) 100%);
   color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.14);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+  border-color: rgba(56, 189, 248, 0.48);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.5), 0 0 14px rgba(56, 189, 248, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.tab-nav-btn.is-active svg {
+  stroke: #38bdf8;
+  filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.5));
 }
 
 .tab-glow-pill {
   font-size: 9px;
   font-weight: 800;
-  padding: 1px 6px;
+  padding: 1.5px 6px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(139, 92, 246, 0.2));
+  background: rgba(56, 189, 248, 0.16);
   color: #38bdf8;
   border: 1px solid rgba(56, 189, 248, 0.35);
   letter-spacing: 0.06em;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
 }
 
 /* --------------------------------------------------------------------------
@@ -282,11 +298,12 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--pro-text-dim);
+  color: #94a3b8;
   padding: 2px 4px 6px;
   display: flex;
   align-items: center;
   gap: 6px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .action-stack {
