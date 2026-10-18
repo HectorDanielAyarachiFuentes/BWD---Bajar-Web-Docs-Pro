@@ -147,7 +147,9 @@
   font-size: var(--imp-font-xs);
   padding: var(--imp-space-1) var(--imp-space-2);
   border-radius: 4px;
-  white-space: nowrap;
+  max-width: 240px;
+  white-space: normal;
+  line-height: 1.35;
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--imp-duration-fast) var(--imp-ease-out),

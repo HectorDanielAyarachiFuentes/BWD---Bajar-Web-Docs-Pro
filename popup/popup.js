@@ -226,9 +226,47 @@ async function applyPageBackground(tab) {
     if (dataUrl) {
       bgEl.style.backgroundImage = `url("${dataUrl}")`;
       bgEl.classList.add('is-loaded');
+
+      // 🧠 Motor Dinámico Inteligente de Luminosidad
+      // Calibra los filtros y opacidades de cristal según si la web es clara u oscura
+      detectAndApplyPageTone(dataUrl);
     }
   } catch (err) {
     console.debug("applyPageBackground aviso:", err);
+  }
+}
+
+function detectAndApplyPageTone(dataUrl) {
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 16;
+        canvas.height = 16;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, 16, 16);
+        const imgData = ctx.getImageData(0, 0, 16, 16).data;
+        let sumLum = 0;
+        for (let i = 0; i < imgData.length; i += 4) {
+          const r = imgData[i];
+          const g = imgData[i + 1];
+          const b = imgData[i + 2];
+          // Rec. 709 perceived luminance
+          const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+          sumLum += lum;
+        }
+        const avgLum = sumLum / (imgData.length / 4);
+        const tone = avgLum >= 0.48 ? 'light' : 'dark';
+        document.body.setAttribute('data-page-tone', tone);
+      } catch (e) {
+        document.body.setAttribute('data-page-tone', 'light');
+      }
+    };
+    img.src = dataUrl;
+  } catch (_) {
+    document.body.setAttribute('data-page-tone', 'light');
   }
 }
 
@@ -1454,48 +1492,7 @@ if (btnHtmlWeb) {
 // ----------------------------------------------------------------------------
 
 function initTooltips() {
-  const elements = document.querySelectorAll('[data-tooltip]');
-  elements.forEach(el => {
-    let tooltipEl = null;
-
-    el.addEventListener('mouseenter', () => {
-      const text = el.getAttribute('data-tooltip');
-      if (!text) return;
-
-      tooltipEl = document.createElement('div');
-      tooltipEl.className = 'imp-tooltip';
-      tooltipEl.textContent = text;
-      tooltipEl.style.opacity = '0';
-      document.body.appendChild(tooltipEl);
-
-      const rect = el.getBoundingClientRect();
-      const tooltipRect = tooltipEl.getBoundingClientRect();
-
-      let top = rect.top - tooltipRect.height - 6;
-      let left = rect.left + (rect.width / 2) - (tooltipRect.width / 2);
-
-      if (left < 6) left = 6;
-      if (left + tooltipRect.width > window.innerWidth - 6) {
-        left = window.innerWidth - tooltipRect.width - 6;
-      }
-      if (top < 6) {
-        top = rect.bottom + 6;
-      }
-
-      tooltipEl.style.top = `${top}px`;
-      tooltipEl.style.left = `${left}px`;
-      requestAnimationFrame(() => {
-        if (tooltipEl) tooltipEl.style.opacity = '1';
-      });
-    });
-
-    el.addEventListener('mouseleave', () => {
-      if (tooltipEl) {
-        tooltipEl.remove();
-        tooltipEl = null;
-      }
-    });
-  });
+  // Tooltips desactivados según preferencia del usuario
 }
 
 // ----------------------------------------------------------------------------
