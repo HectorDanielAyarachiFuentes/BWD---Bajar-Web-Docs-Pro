@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnUndo = document.getElementById('btnUndo');
   const btnReset = document.getElementById('btnReset');
 
+  const exportDropdownWrap = document.getElementById('exportDropdownWrap');
+  const btnExportMenu = document.getElementById('btnExportMenu');
+  const exportMenuDropdown = document.getElementById('exportMenuDropdown');
+
   const btnEditorPdf = document.getElementById('btnEditorPdf');
   const btnEditorDocx = document.getElementById('btnEditorDocx');
   const btnEditorPng = document.getElementById('btnEditorPng');
@@ -195,6 +199,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Evento de clic sobre elementos según la herramienta activa
     frameDoc.addEventListener('click', (e) => {
+      if (exportDropdownWrap && exportDropdownWrap.classList.contains('is-open')) {
+        exportDropdownWrap.classList.remove('is-open');
+        if (btnExportMenu) btnExportMenu.setAttribute('aria-expanded', 'false');
+      }
+
       const target = e.target;
       if (!target || target === frameDoc.body || target === frameDoc.documentElement) return;
 
@@ -407,6 +416,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   toolEditBtn.addEventListener('click', () => setTool('edit'));
   toolDeleteBtn.addEventListener('click', () => setTool('delete'));
   toolRedactBtn.addEventListener('click', () => setTool('redact'));
+
+  // --------------------------------------------------------------------------
+  // Menú Flotante Minimalista de Exportación
+  // --------------------------------------------------------------------------
+  if (btnExportMenu && exportDropdownWrap) {
+    btnExportMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = exportDropdownWrap.classList.toggle('is-open');
+      btnExportMenu.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!exportDropdownWrap.contains(e.target)) {
+        exportDropdownWrap.classList.remove('is-open');
+        btnExportMenu.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && exportDropdownWrap.classList.contains('is-open')) {
+        exportDropdownWrap.classList.remove('is-open');
+        btnExportMenu.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    [btnEditorPdf, btnEditorDocx, btnEditorPng, btnEditorHtml].forEach(btn => {
+      if (btn) {
+        btn.addEventListener('click', () => {
+          exportDropdownWrap.classList.remove('is-open');
+          btnExportMenu.setAttribute('aria-expanded', 'false');
+        });
+      }
+    });
+  }
 
   // --------------------------------------------------------  // --------------------------------------------------------------------------
   // --------------------------------------------------------------------------

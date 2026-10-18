@@ -82,42 +82,102 @@
         </button>
       </div>
 
-      <!-- Exportación Directa -->
+      <!-- Exportación Minimalista y Menú Inteligente -->
       <div class="header-actions">
-        <button id="btnEditorPdf" class="imp-btn imp-btn-primary action-btn-glow" type="button">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="12" y1="18" x2="12" y2="12"></line>
-            <polyline points="9 15 12 18 15 15"></polyline>
-          </svg>
-          <span>Descargar PDF</span>
-        </button>
+        <div class="export-dropdown-wrap" id="exportDropdownWrap">
+          <button id="btnExportMenu" class="imp-btn imp-btn-primary export-hub-trigger" type="button" aria-haspopup="true" aria-expanded="false" title="Opciones de descarga">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Descargar</span>
+            <svg class="chevron-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
 
-        <button id="btnEditorDocx" class="imp-btn" type="button">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-          </svg>
-          <span>Word (.docx)</span>
-        </button>
+          <!-- Menú flotante minimalista Pro -->
+          <div class="export-menu-dropdown" id="exportMenuDropdown">
+            <div class="export-menu-header">
+              <span class="export-menu-label">FORMATO DE DESCARGA</span>
+              <span class="export-pro-pill">PRO HD</span>
+            </div>
 
-        <button id="btnEditorPng" class="imp-btn" type="button">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline>
-          </svg>
-          <span>PNG HD</span>
-        </button>
+            <div class="export-menu-list">
+              <!-- Opción 1: PDF -->
+              <button id="btnEditorPdf" class="export-menu-item item-pdf" type="button">
+                <div class="export-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="12" y1="18" x2="12" y2="12"></line>
+                    <polyline points="9 15 12 18 15 15"></polyline>
+                  </svg>
+                </div>
+                <div class="export-item-body">
+                  <div class="export-item-title-row">
+                    <span class="export-item-title">Documento PDF</span>
+                    <span class="format-pill format-pdf">.PDF</span>
+                  </div>
+                  <span class="export-item-desc">Impresión vectorial de alta fidelidad</span>
+                </div>
+              </button>
 
-        <button id="btnEditorHtml" class="imp-btn" type="button" title="Descargar versión web HTML con todas las modificaciones y censuras">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="16 18 22 12 16 6"></polyline>
-            <polyline points="8 6 2 12 8 18"></polyline>
-          </svg>
-          <span>HTML</span>
-        </button>
+              <!-- Opción 2: DOCX -->
+              <button id="btnEditorDocx" class="export-menu-item item-docx" type="button">
+                <div class="export-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                  </svg>
+                </div>
+                <div class="export-item-body">
+                  <div class="export-item-title-row">
+                    <span class="export-item-title">Microsoft Word</span>
+                    <span class="format-pill format-docx">.DOCX</span>
+                  </div>
+                  <span class="export-item-desc">Texto editable con estilos intactos</span>
+                </div>
+              </button>
+
+              <!-- Opción 3: PNG -->
+              <button id="btnEditorPng" class="export-menu-item item-png" type="button">
+                <div class="export-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                </div>
+                <div class="export-item-body">
+                  <div class="export-item-title-row">
+                    <span class="export-item-title">Captura PNG HD</span>
+                    <span class="format-pill format-png">.PNG</span>
+                  </div>
+                  <span class="export-item-desc">Imagen completa 2x ultra nítida</span>
+                </div>
+              </button>
+
+              <!-- Opción 4: HTML -->
+              <button id="btnEditorHtml" class="export-menu-item item-html" type="button">
+                <div class="export-item-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="16 18 22 12 16 6"></polyline>
+                    <polyline points="8 6 2 12 8 18"></polyline>
+                  </svg>
+                </div>
+                <div class="export-item-body">
+                  <div class="export-item-title-row">
+                    <span class="export-item-title">Código Web HTML</span>
+                    <span class="format-pill format-html">.HTML</span>
+                  </div>
+                  <span class="export-item-desc">Página offline con modificaciones</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
