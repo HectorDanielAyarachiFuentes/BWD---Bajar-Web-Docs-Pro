@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Webs-Docs",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Exporta páginas web completas a PDF fiel sin cortes ni fallos de diseño, Word (.docx) nativo o Captura Retina HD.",
   "icons": {
     "16": "icons/icon-16.png",
