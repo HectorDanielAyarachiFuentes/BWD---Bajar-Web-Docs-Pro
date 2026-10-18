@@ -21,6 +21,7 @@ const tabHostEl = document.getElementById('tabHost');
 const btnPdfVisual = document.getElementById('btnPdfVisual');
 const btnDocx = document.getElementById('btnDocx');
 const btnPngFull = document.getElementById('btnPngFull');
+const btnHtmlWeb = document.getElementById('btnHtmlWeb');
 const btnLaunchEditor = document.getElementById('btnLaunchEditor');
 
 const tabNavExport = document.getElementById('tabNavExport');
@@ -32,7 +33,7 @@ const cleanDomCheckbox = document.getElementById('cleanDom');
 const expandScrollCheckbox = document.getElementById('expandScroll');
 const highQualityCheckbox = document.getElementById('highQuality');
 
-const actionButtons = [btnPdfVisual, btnDocx, btnPngFull, btnLaunchEditor];
+const actionButtons = [btnPdfVisual, btnDocx, btnPngFull, btnHtmlWeb, btnLaunchEditor];
 
 // ----------------------------------------------------------------------------
 // 1. Estados y Progreso
@@ -1318,6 +1319,98 @@ btnPngFull.addEventListener('click', async () => {
     setBusy(false);
   }
 });
+
+// ----------------------------------------------------------------------------
+// 5.b Descargar HTML Web (Extracción limpia, estilos y baseURI preservados)
+// ----------------------------------------------------------------------------
+
+if (btnHtmlWeb) {
+  btnHtmlWeb.addEventListener('click', async () => {
+    try {
+      setBusy(true);
+      setProgress(20, "Extrayendo contenido y estructura HTML...", 'busy');
+
+      const clean = cleanDomCheckbox ? cleanDomCheckbox.checked : true;
+      const tab = await getActiveTab();
+
+      setProgress(45, "Limpiando scripts invasivos y preservando recursos...", 'busy');
+
+      const pageData = await executeInPage((cleanParam) => {
+        try {
+          if (cleanParam) {
+            const selectors = [
+              '#onetrust-consent-sdk', '.cookie-banner', '#cookie-law-info-bar',
+              '[class*="cookie"]', '[id*="cookie"]', '[class*="consent"]',
+              '[id*="consent"]', '[class*="modal-backdrop"]', '.modal-open'
+            ];
+            selectors.forEach(sel => {
+              try {
+                document.querySelectorAll(sel).forEach(el => {
+                  const tag = el.tagName.toLowerCase();
+                  if (tag !== 'body' && tag !== 'html' && tag !== 'main' && tag !== 'header') {
+                    el.style.display = 'none';
+                  }
+                });
+              } catch (_) {}
+            });
+          }
+
+          document.querySelectorAll('img').forEach(img => {
+            const realSrc = img.getAttribute('data-src') ||
+                            img.getAttribute('data-original') ||
+                            img.getAttribute('data-lazy-src') ||
+                            img.currentSrc ||
+                            img.getAttribute('src');
+            if (realSrc) {
+              try {
+                const absUrl = new URL(realSrc, document.baseURI || window.location.href).href;
+                img.setAttribute('src', absUrl);
+              } catch (_) {}
+            }
+          });
+
+          let cleanHtml = document.documentElement.outerHTML;
+
+          // Neutralizar scripts invasivos para evitar ejecuciones externas al abrir el archivo
+          cleanHtml = cleanHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+
+          // Inyectar o asegurar base href para cargar estilos, fuentes e imágenes relativas
+          const baseHref = document.baseURI || window.location.href;
+          if (!/<base\b/i.test(cleanHtml)) {
+            cleanHtml = cleanHtml.replace(/<head([^>]*)>/i, `<head$1>\n  <base href="${baseHref}">`);
+          }
+
+          return {
+            html: cleanHtml,
+            title: document.title || 'pagina_web'
+          };
+        } catch (e) {
+          return {
+            html: document.documentElement.outerHTML,
+            title: document.title || 'pagina_web'
+          };
+        }
+      }, [clean]);
+
+      setProgress(75, "Empaquetando archivo HTML independiente...", 'busy');
+
+      const fullHtml = '<!DOCTYPE html>\n' + pageData.html;
+      const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+      const filename = sanitizeFilename(pageData.title || tab.title, 'html');
+
+      setProgress(90, "Descargando página HTML...", 'busy');
+      await triggerDownload(blob, filename);
+
+      setProgress(100, `¡Página HTML descargada con éxito! (${filename})`, 'success');
+      setBusy(false);
+
+    } catch (err) {
+      console.error("Error al exportar HTML:", err);
+      setProgress(0, `Error: ${formatErrorMessage(err)}`, 'error');
+      setBusy(false);
+    }
+  });
+}
 
 // ----------------------------------------------------------------------------
 // 6. Tooltips e Inicialización

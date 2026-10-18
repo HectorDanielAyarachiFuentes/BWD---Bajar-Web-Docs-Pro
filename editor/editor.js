@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnEditorPdf = document.getElementById('btnEditorPdf');
   const btnEditorDocx = document.getElementById('btnEditorDocx');
   const btnEditorPng = document.getElementById('btnEditorPng');
+  const btnEditorHtml = document.getElementById('btnEditorHtml');
 
   const exportModal = document.getElementById('exportModal');
   const exportModalTitle = document.getElementById('exportModalTitle');
@@ -1469,6 +1470,68 @@ document.addEventListener('DOMContentLoaded', async () => {
       setTool(activeTool);
     }
   });
+
+  // D. Descargar HTML Editado
+  if (btnEditorHtml) {
+    btnEditorHtml.addEventListener('click', async () => {
+      try {
+        showExportModal("Generando versión HTML...", "Preparando documento con ediciones...", 30);
+
+        const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
+        if (!frameDoc || !frameDoc.documentElement) {
+          throw new Error("No se pudo acceder al contenido del documento.");
+        }
+
+        showExportModal("Generando versión HTML...", "Limpiando herramientas de edición...", 60);
+
+        // Clonar el DOM para no alterar la sesión activa del iframe
+        const clonedDoc = frameDoc.documentElement.cloneNode(true);
+
+        // Remover atributos interactivos del editor
+        clonedDoc.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+        clonedDoc.removeAttribute('data-bwd-tool');
+        const bodyEl = clonedDoc.querySelector('body');
+        if (bodyEl) bodyEl.removeAttribute('data-bwd-tool');
+
+        // Remover estilos interactivos internos del editor
+        const internalCss = clonedDoc.querySelector('#bwd-editor-internal-css');
+        if (internalCss) internalCss.remove();
+
+        // Inyectar estilo mínimo indispensable para que las cajas censuradas se mantengan en negro
+        const censorStyle = document.createElement('style');
+        censorStyle.id = 'bwd-censor-style';
+        censorStyle.textContent = '.bwd-redacted-box { background-color: #0f172a !important; color: transparent !important; user-select: none !important; border-radius: 2px !important; }';
+        const headEl = clonedDoc.querySelector('head') || clonedDoc;
+        headEl.appendChild(censorStyle);
+
+        // Asegurar que exista baseURI para enlaces y recursos relativos
+        const baseHref = (cloneData && (cloneData.baseURI || cloneData.url)) || window.location.href;
+        if (!clonedDoc.querySelector('base')) {
+          const baseTag = document.createElement('base');
+          baseTag.href = baseHref;
+          headEl.insertBefore(baseTag, headEl.firstChild);
+        }
+
+        showExportModal("Generando versión HTML...", "Empaquetando archivo final...", 85);
+
+        const finalHtml = '<!DOCTYPE html>\n' + clonedDoc.outerHTML;
+        const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
+        const filename = sanitizeName(cloneData ? cloneData.title : 'documento_editado', 'html');
+
+        triggerDownloadBlob(blob, filename);
+
+        hideExportModal();
+        showToast(`¡HTML editado guardado con éxito! (${filename})`);
+        setTool(activeTool);
+
+      } catch (err) {
+        console.error("Error al exportar HTML:", err);
+        hideExportModal();
+        showToast(`Error al exportar HTML: ${err.message || err}`, true);
+        setTool(activeTool);
+      }
+    });
+  }
 
   // --------------------------------------------------------------------------
   // Helpers

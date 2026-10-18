@@ -230,6 +230,12 @@ body {
   border-color: rgba(168, 85, 247, 0.2);
 }
 
+.icon-html {
+  background-color: rgba(249, 115, 22, 0.1);
+  color: #fb923c;
+  border-color: rgba(249, 115, 22, 0.2);
+}
+
 .action-meta {
   display: flex;
   flex-direction: column;
