@@ -53,7 +53,16 @@ function setProgress(percent, label, state = 'busy') {
     progressLabel.textContent = label;
   }
   if (statusTextEl) {
-    statusTextEl.textContent = label;
+    if (label && label.includes('(') && label.endsWith(')')) {
+      const match = label.match(/^(.*?)\s*\((.*?)\)$/);
+      if (match) {
+        statusTextEl.innerHTML = `<span class="status-title">${escapeXml(match[1])}</span><span class="status-file-pill">${escapeXml(match[2])}</span>`;
+      } else {
+        statusTextEl.textContent = label;
+      }
+    } else {
+      statusTextEl.textContent = label;
+    }
   }
 
   if (statusEl) {

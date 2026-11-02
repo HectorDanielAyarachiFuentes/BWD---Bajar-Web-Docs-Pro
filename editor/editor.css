@@ -525,26 +525,31 @@ body.editor-body {
 }
 
 /* --------------------------------------------------------------------------
-   4. Toast de Notificación Flotante
+   4. Toast de Notificación Flotante (Con márgenes amplios y diseño adaptativo)
    -------------------------------------------------------------------------- */
 .editor-toast {
   position: fixed;
-  bottom: 24px;
+  bottom: 32px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(13, 17, 30, 0.96);
+  border: 1px solid rgba(56, 189, 248, 0.45);
   color: #f8fafc;
-  padding: 10px 22px;
-  border-radius: 999px;
+  padding: 11px 20px;
+  border-radius: 12px;
   font-size: 13px;
-  font-weight: 600;
+  line-height: 1.45;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 10px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 18px rgba(56, 189, 248, 0.25);
-  backdrop-filter: blur(12px);
+  gap: 12px;
+  max-width: min(540px, calc(100vw - 48px));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), 0 0 20px rgba(56, 189, 248, 0.25);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   z-index: 2000;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   animation: toastSlideUp 0.25s var(--ease-spring);
 }
 

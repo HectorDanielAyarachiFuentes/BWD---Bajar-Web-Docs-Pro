@@ -114,6 +114,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           background-image: none !important;
           background-color: transparent !important;
         }
+
+        /* Normalización tipográfica para evitar colapso de letras y palabras */
+        html, body {
+          font-variant-ligatures: none;
+          -webkit-font-variant-ligatures: none;
+          text-rendering: geometricPrecision;
+        }
       </style>
     `;
 
@@ -248,6 +255,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         incrementChanges();
         showToast("Dato confidencial censurado");
+      } else if (activeTool === 'edit') {
+        enableTextEditing(target);
       }
     }, true);
 
@@ -271,24 +280,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function enableTextEditing(element) {
     if (!element || element.tagName === 'BODY' || element.tagName === 'HTML') return;
-    if (element.children.length === 0 || Array.from(element.childNodes).some(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0)) {
-      if (!element.isContentEditable) {
-        const oldText = element.innerText;
-        element.contentEditable = "true";
-        element.focus();
+    const target = element.closest('h1, h2, h3, h4, h5, h6, p, span, a, td, th, li, button, label, figcaption') || element;
+    if (target && !target.isContentEditable) {
+      const oldText = target.innerText;
+      target.contentEditable = "true";
+      target.focus();
 
-        element.addEventListener('blur', function onBlur() {
-          element.removeEventListener('blur', onBlur);
-          if (element.innerText !== oldText) {
-            undoStack.push({
-              type: 'text',
-              element: element,
-              oldText: oldText,
-              newText: element.innerText
-            });
-          }
-        }, { once: true });
-      }
+      target.addEventListener('blur', function onBlur() {
+        target.removeEventListener('blur', onBlur);
+        target.removeAttribute('contenteditable');
+        if (target.innerText !== oldText) {
+          undoStack.push({
+            type: 'text',
+            element: target,
+            oldText: oldText,
+            newText: target.innerText
+          });
+        }
+      }, { once: true });
     }
   }
 
@@ -305,22 +314,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (frameDoc && frameDoc.body) {
       frameDoc.body.setAttribute('data-bwd-tool', tool);
 
-      // Si es edit, habilitar contenteditable en elementos de texto principales
-      if (tool === 'edit') {
-        frameDoc.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, a, td, th, li, button, label').forEach(el => {
-          el.contentEditable = "true";
-        });
-        activeToolHintEl.textContent = "Modo Editar Texto activo: Haz clic directamente en cualquier texto o título para reescribirlo.";
-      } else {
-        frameDoc.querySelectorAll('[contenteditable="true"]').forEach(el => {
-          el.removeAttribute('contenteditable');
-        });
+      // Limpiar cualquier contenteditable residual para proteger la tipografía y espacios intactos
+      frameDoc.querySelectorAll('[contenteditable]').forEach(el => {
+        el.removeAttribute('contenteditable');
+      });
 
-        if (tool === 'delete') {
-          activeToolHintEl.textContent = "Modo Eliminar Elemento: Haz clic sobre cualquier bloque, avatar o anuncio para borrarlo de la página.";
-        } else if (tool === 'redact') {
-          activeToolHintEl.textContent = "Modo Censurar Datos: Haz clic sobre nombres, números o datos privados para cubrirlos con una barra de confidencialidad.";
-        }
+      if (tool === 'edit') {
+        activeToolHintEl.textContent = "Modo Editar Texto activo: Haz clic directamente en cualquier texto o título para reescribirlo.";
+      } else if (tool === 'delete') {
+        activeToolHintEl.textContent = "Modo Eliminar Elemento: Haz clic sobre cualquier bloque, avatar o anuncio para borrarlo de la página.";
+      } else if (tool === 'redact') {
+        activeToolHintEl.textContent = "Modo Censurar Datos: Haz clic sobre nombres, números o datos privados para cubrirlos con una barra de confidencialidad.";
       }
     }
   }
@@ -609,8 +613,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function captureEditorCanvas(onProgress = () => {}) {
     const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
 
-    // Desactivar temporalmente cursores de edición y cajas de foco
-    frameDoc.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
+    // Desactivar temporalmente cursores de edición, cajas de foco y atributos contenteditable
+    frameDoc.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+
+    // Esperar a que las fuentes web estén completamente cargadas y decodificadas
+    if (frameDoc.fonts) {
+      try {
+        await Promise.race([
+          frameDoc.fonts.ready,
+          new Promise(r => setTimeout(r, 1500))
+        ]);
+      } catch (_) {}
+    }
 
     onProgress("Descargando e incrustando imágenes reales...", 15);
 
@@ -704,10 +718,45 @@ document.addEventListener('DOMContentLoaded', async () => {
             clonedDoc.body.style.height = 'auto';
           }
 
-          // Inyectar regla global para suprimir barras de desplazamiento en la captura
+          // A. Asegurar base URI para resolver fuentes relativas y estilos
+          const baseHref = frameDoc.baseURI || cloneData?.baseURI || cloneData?.url || window.location.href;
+          let baseTag = clonedDoc.querySelector('base');
+          if (!baseTag && clonedDoc.head) {
+            baseTag = clonedDoc.createElement('base');
+            baseTag.href = baseHref;
+            clonedDoc.head.insertBefore(baseTag, clonedDoc.head.firstChild);
+          }
+
+          // B. Transferir fuentes cargadas para que html2canvas use las métricas exactas y no colapse palabras
+          if (frameDoc.fonts && clonedDoc.fonts) {
+            try {
+              frameDoc.fonts.forEach(font => {
+                try { clonedDoc.fonts.add(font); } catch (_) {}
+              });
+            } catch (_) {}
+          }
+
+          // C. Transferir hojas de estilo y fuentes incrustadas del head
+          frameDoc.querySelectorAll('link[rel="stylesheet"], style').forEach(st => {
+            if (!st.id || !clonedDoc.getElementById(st.id)) {
+              try {
+                clonedDoc.head.appendChild(st.cloneNode(true));
+              } catch (_) {}
+            }
+          });
+
+          // D. Inyectar regla global de separación fiel de palabras, tipografía y supresión de scrollbars
           const styleEl = clonedDoc.createElement('style');
+          styleEl.id = 'bwd-typography-and-scrollbars';
           styleEl.textContent = `
             *, *::before, *::after {
+              letter-spacing: 0.02px !important;
+              font-variant: normal !important;
+              -webkit-font-variant: normal !important;
+              font-variant-ligatures: none !important;
+              -webkit-font-variant-ligatures: none !important;
+              text-rendering: geometricPrecision !important;
+              word-spacing: normal !important;
               scrollbar-width: none !important;
               -ms-overflow-style: none !important;
             }
@@ -730,6 +779,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           `;
           if (clonedDoc.head) clonedDoc.head.appendChild(styleEl);
+
+          // E. Limpiar cualquier atributo contenteditable residual en el clon
+          clonedDoc.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
 
           clonedDoc.querySelectorAll('*').forEach(el => {
             if (el.scrollTop) el.scrollTop = 0;
@@ -1619,7 +1671,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function showToast(msg, isError = false) {
-    toastMessage.textContent = msg;
+    if (msg && msg.includes('(') && msg.endsWith(')')) {
+      const match = msg.match(/^(.*?)\s*\((.*?)\)$/);
+      if (match) {
+        toastMessage.innerHTML = `<span style="font-weight:600;">${match[1]}</span><span style="display:inline-block; margin-left:6px; opacity:0.85; font-size:11px; background:rgba(255,255,255,0.08); padding:1px 6px; border-radius:4px; font-family:ui-monospace, monospace;">${match[2]}</span>`;
+      } else {
+        toastMessage.textContent = msg;
+      }
+    } else {
+      toastMessage.textContent = msg;
+    }
     const toastIcon = toastNotification.querySelector('.toast-icon');
     if (toastIcon) {
       toastIcon.textContent = isError ? '✕' : '✓';

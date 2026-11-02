@@ -73,6 +73,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   user-select: none;
   position: relative;
+  padding-bottom: 6px;
 }
 
 /* --------------------------------------------------------------------------
@@ -773,39 +774,76 @@ body[data-page-tone="dark"] .action-row {
 }
 
 /* --------------------------------------------------------------------------
-   6. Footer & Estado General
+   6. Footer & Estado General (Cartel Elegante con Márgenes Impeccable)
    -------------------------------------------------------------------------- */
 .app-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 10px;
-  padding: 10px 0 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 14px;
+  margin-bottom: 8px;
+  padding: 10px 2px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .status-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  color: #cbd5e1;
-  background: rgba(10, 13, 24, 0.85);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 4px 14px;
-  border-radius: 999px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #e2e8f0;
+  background: rgba(12, 16, 28, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 10px 14px;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  font-weight: 500;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  transition: all 0.22s var(--pro-ease-fluid);
+}
+
+.status-title {
+  display: block;
   font-weight: 600;
+  color: #f8fafc;
+}
+
+.status-indicator.is-success .status-title {
+  color: #34d399;
+}
+
+.status-indicator.is-error .status-title {
+  color: #fca5a5;
+}
+
+.status-indicator.is-busy .status-title {
+  color: #93c5fd;
+}
+
+.status-file-pill {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 10px;
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background-color: #64748b;
   flex-shrink: 0;
+  margin-top: 4px;
   transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
