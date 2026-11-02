@@ -193,6 +193,45 @@ body.editor-body {
   box-shadow: 0 0 14px rgba(56, 189, 248, 0.3);
 }
 
+#btnAutoClean {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.09);
+  color: #7dd3fc;
+}
+
+#btnAutoClean:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+}
+
+#btnReorganize {
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.09);
+  color: #6ee7b7;
+}
+
+#btnReorganize:hover {
+  background: rgba(52, 211, 153, 0.22);
+  border-color: #34d399;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(52, 211, 153, 0.4);
+}
+
+#btnAutoRedact {
+  border-color: rgba(192, 132, 252, 0.3);
+  background: rgba(192, 132, 252, 0.09);
+  color: #e9d5ff;
+}
+
+#btnAutoRedact:hover {
+  background: rgba(192, 132, 252, 0.22);
+  border-color: #c084fc;
+  color: #fff;
+  box-shadow: 0 0 16px rgba(192, 132, 252, 0.4);
+}
+
 .toolbox-divider {
   width: 1px;
   height: 20px;

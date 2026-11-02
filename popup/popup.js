@@ -364,6 +364,10 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
 
     if (opts.clean) {
       const selectors = [
+        'ins.adsbygoogle', 'iframe[id*="google_ads"]', 'iframe[src*="doubleclick"]',
+        'div[id*="google_ads"]', 'div[class*="ad-container"]', 'div[class*="advertisement"]',
+        'div[class*="ad-box"]', 'div[class*="taboola"]', 'div[class*="outbrain"]',
+        '[data-ad-slot]', '[class*="sponsor"]', '.ln-placeholder',
         '.cookie-banner', '#cookie-banner', '.cookies', '.modal-backdrop',
         '.ad', '.ads', '.advertisement', '[id*="cookie"]', '[class*="cookie"]',
         '.chat-widget', '#onetrust-consent-sdk', '[aria-label*="cookie" i]'
@@ -372,7 +376,7 @@ async function captureFullPageCanvas({ clean = false, expand = false, onProgress
         try {
           document.querySelectorAll(sel).forEach(el => {
             const style = window.getComputedStyle(el);
-            if (style.position === 'fixed' || style.position === 'sticky' || parseInt(style.zIndex, 10) > 1000) {
+            if (style.position === 'fixed' || style.position === 'sticky' || parseInt(style.zIndex, 10) > 1000 || el.tagName === 'INS' || el.tagName === 'IFRAME') {
               window._bwdRestores.push({ el, prop: 'display', val: el.style.display });
               el.style.setProperty('display', 'none', 'important');
             }
@@ -1478,7 +1482,11 @@ if (btnHtmlWeb) {
 
       setProgress(75, "Empaquetando archivo HTML independiente...", 'busy');
 
-      const fullHtml = '<!DOCTYPE html>\n' + pageData.html;
+      let fullHtml = pageData.html || '';
+      fullHtml = fullHtml.trim().replace(/^(\s*<!--[\s\S]*?-->\s*)+/i, '');
+      if (!/^\s*<!DOCTYPE\s+html/i.test(fullHtml)) {
+        fullHtml = '<!DOCTYPE html>\n' + fullHtml;
+      }
       const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
       const filename = sanitizeFilename(pageData.title || tab.title, 'html');
 
@@ -1549,7 +1557,9 @@ function initEditorLauncher() {
 
       setProgress(40, "Extrayendo diseño e imágenes originales...", 'busy');
 
-      const cloneData = await executeInPage(() => {
+      const clean = cleanDomCheckbox ? cleanDomCheckbox.checked : true;
+
+      const cloneData = await executeInPage((shouldClean) => {
         try {
           // Desenrollar <picture> para que html2canvas y el DOM estándar lo muestren sin fallos
           document.querySelectorAll('picture').forEach(pic => {
@@ -1631,15 +1641,115 @@ function initEditorLauncher() {
           });
         } catch (_) {}
 
+        const cloneRoot = document.documentElement.cloneNode(true);
+
+        // A. Neutralizar scripts y noscripts completamente para evitar bloqueos y recargas
+        cloneRoot.querySelectorAll('script, noscript').forEach(s => s.remove());
+
+        // B. Neutralizar autoplay en videos y audios para evitar advertencias de permisos y consumo
+        cloneRoot.querySelectorAll('video, audio').forEach(media => {
+          media.removeAttribute('autoplay');
+          media.removeAttribute('loop');
+          media.setAttribute('muted', '');
+          media.muted = true;
+          try { media.pause(); } catch (_) {}
+        });
+
+        // C. Neutralizar iframes invasivos de tracking, videos publicitarios y paywall (Google SwG, serviceiframe, etc.)
+        cloneRoot.querySelectorAll('iframe').forEach(ifr => {
+          const src = (ifr.getAttribute('src') || '').toLowerCase();
+          const id = (ifr.getAttribute('id') || '').toLowerCase();
+          if (
+            id.includes('serviceiframe') ||
+            src.includes('google.com/swg') ||
+            src.includes('doubleclick') ||
+            src.includes('google_ads') ||
+            src.includes('taboola') ||
+            src.includes('outbrain') ||
+            src.includes('adnxs') ||
+            src.includes('adsystem') ||
+            src.includes('dailymotion') ||
+            src.includes('chartbeat') ||
+            src.includes('adzone') ||
+            src.includes('streamtheworld') ||
+            src.includes('imasdk')
+          ) {
+            ifr.remove();
+          }
+        });
+
+        // D. Eliminar inline handlers (onload, onerror, etc.) para evitar fallos de scriptlets
+        cloneRoot.querySelectorAll('*').forEach(el => {
+          for (const attr of Array.from(el.attributes)) {
+            if (attr.name.toLowerCase().startsWith('on')) {
+              el.removeAttribute(attr.name);
+            }
+          }
+        });
+
+        // D. Si la opción de limpieza está activa, ejecutar filtro preventivo sobre el clon
+        if (shouldClean) {
+          const adSelectors = [
+            'ins.adsbygoogle',
+            'iframe[id*="google_ads"]',
+            'div[id*="google_ads"]',
+            'div[id*="div-gpt-ad"]',
+            'div[class*="taboola"]',
+            'div[class*="outbrain"]',
+            'div[class*="advertisement"]',
+            'div[class*="ad-box"]',
+            'div[class*="ad-container"]',
+            'div[class*="banner-ad"]',
+            'div[class*="dfp-ad"]',
+            'div[class*="teads"]',
+            '[data-ad-slot]',
+            '[data-ad-unit]',
+            '[class*="caja-comercial"]',
+            '[class*="caja-canal"]',
+            '[class*="caja-collection"]',
+            '[class*="LN10_"]',
+            '[id*="LN10_"]',
+            '[class*="publicidad"]',
+            '[class*="patrocinado"]',
+            '[class*="anuncio"]',
+            '[class*="pauta"]',
+            '[class*="modulo-ad"]',
+            '[class*="publi-box"]',
+            '[class*="banner-header"]',
+            '[class*="banner-top"]',
+            '[class*="banner-middle"]',
+            '[class*="banner-bottom"]',
+            '[class*="banner-sidebar"]',
+            '#onetrust-consent-sdk',
+            '#onetrust-banner-sdk',
+            '#cookie-banner',
+            '[class*="cookie-consent"]',
+            '[class*="swg-"]',
+            '.swg-dialog',
+            '[class*="paywall"]',
+            '[class*="newsletter-modal"]',
+            '#disqus_thread'
+          ];
+          adSelectors.forEach(sel => {
+            try {
+              cloneRoot.querySelectorAll(sel).forEach(el => {
+                if (!['HTML', 'HEAD', 'BODY', 'MAIN', 'ARTICLE'].includes(el.tagName)) {
+                  el.remove();
+                }
+              });
+            } catch (_) {}
+          });
+        }
+
         return {
-          html: document.documentElement.outerHTML,
+          html: '<!DOCTYPE html>\n' + cloneRoot.outerHTML,
           title: document.title || 'Página Web',
           url: window.location.href,
           baseURI: document.baseURI || window.location.href,
           viewportWidth: window.innerWidth,
           viewportHeight: window.innerHeight
         };
-      });
+      }, [clean]);
 
       if (!cloneData || !cloneData.html) {
         throw new Error("No se pudo extraer el HTML de la página activa.");

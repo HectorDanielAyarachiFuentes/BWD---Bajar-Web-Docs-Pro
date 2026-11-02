@@ -58,8 +58,18 @@
           <span>Censurar</span>
         </button>
 
-        <button id="btnAutoRedact" class="tool-btn tool-btn-special" type="button" title="Auto-Censura Inteligente: Detecta y censura automáticamente perfiles, emails y balances">
+        <button id="btnAutoClean" class="tool-btn tool-btn-special" type="button" title="Auto-Limpieza Inteligente: Elimina cabeceras duplicadas, anuncios, publicidad, cookies y cuadros de relleno">
           <span style="color: #38bdf8; font-size: 13px;">✦</span>
+          <span>Auto-Limpiar</span>
+        </button>
+
+        <button id="btnReorganize" class="tool-btn tool-btn-special" type="button" title="Reacomodar Inteligente (Mozilla Readability): Extrae el título, fotos y cuerpo del artículo en una maqueta limpia sin cabeceras ni relleno">
+          <span style="color: #34d399; font-size: 13px;">✦</span>
+          <span>Reacomodar</span>
+        </button>
+
+        <button id="btnAutoRedact" class="tool-btn tool-btn-special" type="button" title="Auto-Censura Inteligente: Detecta y censura automáticamente perfiles, emails y balances">
+          <span style="color: #c084fc; font-size: 13px;">✦</span>
           <span>Auto-Censura</span>
         </button>
 
@@ -223,6 +233,7 @@
 
   <script src="../libs/html2canvas.min.js"></script>
   <script src="../libs/jspdf.umd.min.js"></script>
+  <script src="../libs/Readability.js"></script>
   <script src="editor.js"></script>
 </body>
 </html>

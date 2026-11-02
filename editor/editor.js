@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toolEditBtn = document.getElementById('toolEdit');
   const toolDeleteBtn = document.getElementById('toolDelete');
   const toolRedactBtn = document.getElementById('toolRedact');
+  const btnAutoClean = document.getElementById('btnAutoClean');
+  const btnReorganize = document.getElementById('btnReorganize');
   const btnAutoRedact = document.getElementById('btnAutoRedact');
   const btnUndo = document.getElementById('btnUndo');
   const btnReset = document.getElementById('btnReset');
@@ -66,12 +68,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 2. Renderizar el HTML en el iframe sin scripts invasivos
   // --------------------------------------------------------------------------
   function renderClone(data) {
-    let cleanHtml = data.html;
+    let cleanHtml = data.html || '';
 
-    // Neutralizar scripts para evitar redirecciones o bloqueos
+    // 1. Asegurar DOCTYPE estándar para evitar MODO QUIRKS (estrictamente requerido por Firefox)
+    cleanHtml = cleanHtml.trim().replace(/^(\s*<!--[\s\S]*?-->\s*)+/i, '');
+    if (!/^\s*<!DOCTYPE\s+html/i.test(cleanHtml)) {
+      cleanHtml = '<!DOCTYPE html>\n' + cleanHtml;
+    }
+
+    // 2. Neutralizar scripts y noscripts para evitar redirecciones, tracking o bloqueos
     cleanHtml = cleanHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    cleanHtml = cleanHtml.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '');
 
-    // Inyectar base URI si no existe
+    // 3. Eliminar iframes invasivos de paywall, trackers, videos publicitarios y redes de anuncios
+    cleanHtml = cleanHtml.replace(/<iframe\b[^>]*(?:google\.com\/swg|serviceiframe|doubleclick|google_ads|taboola|outbrain|adnxs|adsystem|dailymotion|chartbeat|adzone|streamtheworld|imasdk)[^>]*>[\s\S]*?<\/iframe>/gi, '');
+    cleanHtml = cleanHtml.replace(/<iframe\b[^>]*id=["'][^"']*serviceiframe[^"']*["'][^>]*>[\s\S]*?<\/iframe>/gi, '');
+
+    // 4. Neutralizar autoplay de videos y audios para silenciar advertencias de políticas multimedia
+    cleanHtml = cleanHtml.replace(/\bautoplay\b/gi, 'data-bwd-no-autoplay');
+
+    // 5. Eliminar atributos de eventos en línea (onload, onerror, onclick, etc.) para que scriptlets de extensiones no fallen
+    cleanHtml = cleanHtml.replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+
+    // 5. Inyectar base URI si no existe
     if (!/<base\b/i.test(cleanHtml)) {
       cleanHtml = cleanHtml.replace(/<head([^>]*)>/i, `<head$1><base href="${data.baseURI || data.url}">`);
     }
@@ -116,7 +135,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         /* Normalización tipográfica para evitar colapso de letras y palabras */
-        html, body {
+        html, body, p, h1, h2, h3, h4, h5, h6, span, a, div {
+          letter-spacing: normal;
+          word-spacing: normal;
+          font-kerning: normal;
           font-variant-ligatures: none;
           -webkit-font-variant-ligatures: none;
           text-rendering: geometricPrecision;
@@ -131,12 +153,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     frameDoc.write(cleanHtml);
     frameDoc.close();
 
-    cloneFrame.onload = () => {
+    // Iniciar eventos y herramientas INMEDIATAMENTE tras la escritura en el DOM (sin depender de iframe.onload)
+    function activateFrame() {
+      const doc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
+      if (!doc || !doc.body) return;
+      if (doc.__bwd_activated) return;
+      doc.__bwd_activated = true;
       initFrameEvents();
       setTool(activeTool);
-      // Descargar e incrustar imágenes reales en segundo plano
-      inlineAllImages(frameDoc).catch(() => {});
-    };
+      inlineAllImages(doc).catch(() => {});
+    }
+
+    activateFrame();
+    if (frameDoc.readyState === 'loading') {
+      frameDoc.addEventListener('DOMContentLoaded', activateFrame, { once: true });
+    }
+    setTimeout(activateFrame, 50);
+    setTimeout(activateFrame, 250);
   }
 
   // --------------------------------------------------------------------------
@@ -335,8 +368,457 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // --------------------------------------------------------------------------
-  // 4. Auto-Censura Inteligente de Perfil
+  // 4. Auto-Limpieza Inteligente y Auto-Censura de Perfil
   // --------------------------------------------------------------------------
+  function cleanPageDom(frameDoc) {
+    if (!frameDoc || !frameDoc.body) return 0;
+
+    const adAndClutterSelectors = [
+      // A. Publicidades de Google, Redes y Contenedores Ads Internacionales
+      'ins.adsbygoogle',
+      'iframe[id*="google_ads"]',
+      'iframe[src*="doubleclick"]',
+      'iframe[src*="adnxs"]',
+      'iframe[src*="adsystem"]',
+      'iframe[src*="google.com/swg"]',
+      'iframe[src*="serviceiframe"]',
+      'iframe[id*="serviceiframe"]',
+      'div[id*="google_ads"]',
+      'div[id*="ad-container"]',
+      'div[class*="ad-container"]',
+      'div[class*="advertisement"]',
+      'div[class*="ad-box"]',
+      'div[class*="ad-wrapper"]',
+      'div[class*="ad-slot"]',
+      'div[class*="ads-area"]',
+      'div[class*="banner-ad"]',
+      'div[class*="dfp-ad"]',
+      'div[class*="taboola"]',
+      'div[id*="taboola"]',
+      'div[class*="outbrain"]',
+      'div[id*="outbrain"]',
+      'div[class*="teads"]',
+      'div[id*="teads"]',
+      '[data-ad-slot]',
+      '[data-ad-unit]',
+      '[data-ad-name]',
+      '[data-ad-type]',
+      '[data-google-query-id]',
+      '[class*="sponsor"]',
+      '[id*="sponsor"]',
+      '.ln-placeholder',
+      '[class*="placeholder-ad"]',
+      '[class*="--placeholder"]',
+
+      // B. Sitios en Español / Prensa Latina (La Nación, Clarín, Infobae, LM Neuquén, etc.)
+      '[class*="caja-comercial"]',
+      '[class*="banner-comercial"]',
+      '[class*="comercial-"]',
+      '[class*="--comercial"]',
+      '[id*="comercial"]',
+      '[class*="publicidad"]',
+      '[id*="publicidad"]',
+      '[class*="anuncio"]',
+      '[id*="anuncio"]',
+      '[class*="patrocinado"]',
+      '[id*="patrocinado"]',
+      '[class*="pauta"]',
+      '[class*="modulo-ad"]',
+      '[class*="item-comercial"]',
+      '[class*="caja-canal"]',
+      '[class*="caja-collection"]',
+      '[class*="LN10_"]',
+      '[id*="LN10_"]',
+      '[class*="publi-box"]',
+      '[class*="modulo-publicidad"]',
+      '[class*="banner-publicidad"]',
+      '[class*="modulo-banners"]',
+      '[class*="banner-top"]',
+      '[class*="banner-middle"]',
+      '[class*="banner-bottom"]',
+      '[class*="banner-sidebar"]',
+      '[class*="banner-header"]',
+      '[class*="te-puede-interesar"]',
+      '[class*="temas-del-dia"]',
+      '[class*="header-topics"]',
+      '[class*="mas-leidas"]',
+      '[class*="mas-leido"]',
+      '[class*="mas-vistas"]',
+      '[class*="mas-visto"]',
+      '[class*="ranking"]',
+      '[class*="articulos-relacionados"]',
+      '[class*="relacionadas"]',
+      '[class*="bloque-relacionadas"]',
+      '[class*="recomendados"]',
+      '[class*="imperdibles"]',
+      '[aria-label*="publicidad" i]',
+      '[aria-label*="anuncio" i]',
+
+      // C. Banners de Cookies, GDPR y Consentimiento
+      '#onetrust-consent-sdk',
+      '#onetrust-banner-sdk',
+      '#cookie-banner',
+      '.cookie-banner',
+      '.cookie-notice',
+      '.cookie-law-info-bar',
+      '[class*="cookie-consent"]',
+      '[id*="cookie-consent"]',
+      '[class*="cookie-modal"]',
+      '[class*="cookies-policy"]',
+      '[aria-label*="cookie" i]',
+      '.modal-backdrop',
+
+      // D. Popups de Suscripción, Newsletter y Paywalls / Subscribe with Google
+      '.swg-dialog',
+      '[class*="swg-"]',
+      '[id*="swg-"]',
+      '[class*="newsletter-modal"]',
+      '[class*="subscription-modal"]',
+      '[class*="newsletter-popup"]',
+      '[class*="popup-subscribe"]',
+      '[class*="paywall-banner"]',
+      '[class*="paywall"]',
+      '[class*="suscripcion"]',
+      '[class*="suscribite"]',
+      '[class*="club-ln"]',
+      '[id*="newsletter-signup"]',
+
+      // E. Botones molestos de membresía/suscripción ("Hacete socio", "70% OFF")
+      '[class*="btn-socio"]',
+      '[class*="hacete-socio"]',
+      '[class*="hacetesocio"]',
+      'a[href*="socio"]',
+      'a[href*="soci@"]',
+      'a[href*="suscrip"]',
+      'a[href*="membership"]',
+      '[class*="oferta-"]',
+      '[class*="badge-oferta"]',
+      '[class*="suscripcion-banner"]',
+      '[class*="banner-suscripcion"]',
+      '[class*="membership"]',
+      '[id*="hacete-socio"]',
+
+      // F. Tickers en vivo y barras de cotizaciones ("VIVO", "Dólar blue", Trending)
+      '[class*="ticker"]',
+      '[class*="breaking"]',
+      '[class*="vivo"]',
+      '[class*="live"]',
+      '[class*="trends"]',
+      '[class*="tendencias"]',
+      '[class*="cotizaciones"]',
+      '[class*="dolar"]',
+      '[class*="topics"]',
+      '[class*="temas"]',
+      '[class*="campania"]',
+      '[class*="campaign"]',
+      '[class*="aniversario"]',
+
+      // G. Cuadros chicos de relleno, comentarios pesados, barras flotantes y sidebars secundarias
+      'aside',
+      '[role="complementary"]',
+      '#disqus_thread',
+      '[class*="facebook-comments"]',
+      '[class*="social-share-fixed"]',
+      '[class*="sticky-share"]',
+      '[class*="share-bar-fixed"]',
+      '[class*="barra-compartir"]',
+      '[class*="floating-player"]',
+      '[class*="flying-ad"]',
+      '[class*="bottom-banner"]',
+      '[class*="banner-flotante"]'
+    ];
+
+    // Etiquetas estructurales que NUNCA se deben eliminar para proteger el contenido principal
+    const protectedTags = new Set([
+      'HTML', 'HEAD', 'BODY', 'MAIN', 'ARTICLE', 'H1', 'H2', 'H3'
+    ]);
+
+    const itemsToRemove = [];
+    const seen = new Set();
+
+    // 1. Detección por selectores de publicidad y relleno
+    adAndClutterSelectors.forEach(sel => {
+      try {
+        frameDoc.querySelectorAll(sel).forEach(el => {
+          if (seen.has(el)) return;
+          if (protectedTags.has(el.tagName)) return;
+
+          // Protección de contenido legítimo: Si contiene varios párrafos largos, no borrar
+          const textLen = el.innerText ? el.innerText.trim().length : 0;
+          const pCount = el.querySelectorAll('p').length;
+          if (pCount > 4 && textLen > 700) {
+            return;
+          }
+
+          // Si un ancestro ya va a ser eliminado, evitar duplicación
+          let ancestorIsRemoved = false;
+          let p = el.parentElement;
+          while (p && p !== frameDoc.body) {
+            if (seen.has(p)) {
+              ancestorIsRemoved = true;
+              break;
+            }
+            p = p.parentElement;
+          }
+          if (ancestorIsRemoved) return;
+
+          seen.add(el);
+          itemsToRemove.push(el);
+        });
+      } catch (_) {}
+    });
+
+    // 2. Detección heurística de barras flotantes/fijas al pie de página (ej: reproductores o anuncios volantes)
+    try {
+      const win = cloneFrame.contentWindow || window;
+      frameDoc.querySelectorAll('div, section, footer, aside').forEach(el => {
+        if (seen.has(el)) return;
+        if (protectedTags.has(el.tagName)) return;
+        try {
+          const style = win.getComputedStyle(el);
+          if (style.position === 'fixed') {
+            const rect = el.getBoundingClientRect();
+            if (rect.bottom >= (win.innerHeight - 80) && rect.height > 0 && rect.height < 320) {
+              const textLen = el.innerText ? el.innerText.trim().length : 0;
+              const pCount = el.querySelectorAll('p').length;
+              if (pCount <= 2 || textLen < 300) {
+                seen.add(el);
+                itemsToRemove.push(el);
+              }
+            }
+          }
+        } catch (_) {}
+      });
+    } catch (_) {}
+
+    // 3. Detección y supresión de cabeceras duplicadas / secundarias (Técnica SingleFile)
+    try {
+      const headerCandidates = Array.from(frameDoc.querySelectorAll('header, nav, [class*="header"], [id*="header"]'));
+      const navBars = headerCandidates.filter(el => {
+        if (!el || (protectedTags.has(el.tagName) && el.tagName !== 'HEADER')) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.top <= 250 && rect.height > 25 && rect.height < 250;
+      });
+
+      if (navBars.length > 1) {
+        for (let i = 0; i < navBars.length; i++) {
+          for (let j = i + 1; j < navBars.length; j++) {
+            const barA = navBars[i];
+            const barB = navBars[j];
+            if (barA.contains(barB) || barB.contains(barA)) continue;
+
+            const linksA = Array.from(barA.querySelectorAll('a')).map(a => a.href || a.textContent.trim()).filter(Boolean);
+            const linksB = Array.from(barB.querySelectorAll('a')).map(a => a.href || a.textContent.trim()).filter(Boolean);
+
+            if (linksA.length >= 2 && linksB.length >= 2) {
+              const common = linksA.filter(l => linksB.includes(l));
+              const overlap = common.length / Math.min(linksA.length, linksB.length);
+              if (overlap >= 0.5) {
+                const targetToRemove = barB;
+                if (!seen.has(targetToRemove) && !protectedTags.has(targetToRemove.tagName)) {
+                  seen.add(targetToRemove);
+                  itemsToRemove.push(targetToRemove);
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (itemsToRemove.length === 0) return 0;
+
+    const batchItems = [];
+    itemsToRemove.forEach(el => {
+      const parent = el.parentNode;
+      const nextSibling = el.nextSibling;
+      if (parent) {
+        batchItems.push({ element: el, parent, nextSibling });
+        el.remove();
+      }
+    });
+
+    if (batchItems.length > 0) {
+      undoStack.push({
+        type: 'batch_delete',
+        items: batchItems
+      });
+      changesCount += batchItems.length;
+      changesCounterEl.textContent = `${changesCount} cambio${changesCount === 1 ? '' : 's'} realizado${changesCount === 1 ? '' : 's'}`;
+      return batchItems.length;
+    }
+    return 0;
+  }
+
+  if (btnAutoClean) {
+    btnAutoClean.addEventListener('click', () => {
+      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
+      if (!frameDoc || !frameDoc.body) return;
+
+      const count = cleanPageDom(frameDoc);
+      if (count > 0) {
+        showToast(`¡Auto-Limpieza lista! Se eliminaron ${count} anuncios, banners y cuadros.`);
+      } else {
+        showToast("¡La página ya está limpia! No se detectaron anuncios o banners evidentes.");
+      }
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // Reacomodación Inteligente con Motor Mozilla Readability (Firefox Reader)
+  // --------------------------------------------------------------------------
+  async function reorganizeWithReadability(frameDoc) {
+    if (!frameDoc || !frameDoc.body) return;
+
+    if (!window.Readability) {
+      showToast("El motor Mozilla Readability no está disponible.");
+      return;
+    }
+
+    try {
+      showExportModal("Reacomodando con Mozilla Readability...", "Analizando estructura semántica y aislando el artículo...", 25);
+
+      // 1. Clonar el documento para que Readability lo procese sin alterar el original
+      const docClone = frameDoc.cloneNode(true);
+
+      // Resolver imágenes relativas a absolutas antes del parseo
+      const baseHref = frameDoc.baseURI || (cloneData && (cloneData.baseURI || cloneData.url)) || window.location.href;
+      docClone.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src') || img.getAttribute('data-src');
+        if (src) {
+          try {
+            img.src = new URL(src, baseHref).href;
+          } catch (_) {}
+        }
+      });
+
+      const reader = new window.Readability(docClone, {
+        charThreshold: 20,
+        classesToPreserve: ['caption', 'epigrafe', 'bajada', 'copete']
+      });
+
+      const article = reader.parse();
+
+      if (!article || !article.content) {
+        hideExportModal();
+        showToast("No se detectó un artículo estándar en esta página. Puedes usar 'Auto-Limpiar'.");
+        return;
+      }
+
+      showExportModal("Reacomodando artículo...", "Generando maquetación editorial limpia...", 75);
+
+      // Guardar estado previo para Deshacer
+      undoStack.push({
+        type: 'full_reorganize',
+        origBody: frameDoc.body.innerHTML,
+        origHead: frameDoc.head.innerHTML
+      });
+
+      // 2. Extraer o preservar la imagen principal si Readability no la capturó en el content
+      let leadImageHtml = '';
+      if (!article.content.includes('<img')) {
+        const firstImg = frameDoc.querySelector('article figure img, article img, main figure img, main img, .lead-image img, .portada img');
+        if (firstImg && firstImg.src && !firstImg.src.includes('avatar') && !firstImg.src.includes('logo')) {
+          leadImageHtml = `
+            <figure class="bwd-readability-lead-figure" style="margin: 28px 0; text-align: center;">
+              <img src="${firstImg.src}" style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" alt="${article.title || ''}">
+            </figure>
+          `;
+        }
+      }
+
+      const siteTitle = article.siteName || (cloneData && cloneData.title ? cloneData.title.split('-')[0].trim() : 'Artículo Web');
+      const authorByline = article.byline ? `<div class="bwd-readability-byline" style="font-size: 14px; color: #64748b; margin-bottom: 24px; font-weight: 500;">${article.byline}</div>` : '';
+
+      // 3. Estructurar el HTML editorial limpio
+      const cleanArticleHtml = `
+        <article class="bwd-readability-container" style="max-width: 820px; margin: 40px auto; padding: 0 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.75;">
+          <header class="bwd-readability-header" style="margin-bottom: 32px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+            <span class="bwd-readability-site" style="display: inline-block; padding: 3px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #0284c7; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;">${siteTitle}</span>
+            <h1 class="bwd-readability-title" style="font-size: 32px; font-weight: 800; line-height: 1.25; color: #0f172a; margin: 0 0 16px 0; letter-spacing: -0.02em;">${article.title}</h1>
+            ${authorByline}
+          </header>
+          ${leadImageHtml}
+          <div class="bwd-readability-body" style="font-size: 18px; color: #334155;">
+            ${article.content}
+          </div>
+        </article>
+      `;
+
+      // Inyectar estilos editoriales limpios dentro del iframe
+      const editorialStyles = `
+        <style id="bwd-readability-internal-styles">
+          body {
+            background-color: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .bwd-readability-container p {
+            font-size: 18px !important;
+            line-height: 1.8 !important;
+            margin: 0 0 22px 0 !important;
+            color: #334155 !important;
+          }
+          .bwd-readability-container img {
+            max-width: 100% !important;
+            height: auto !important;
+            border-radius: 8px !important;
+            margin: 20px auto !important;
+            display: block !important;
+          }
+          .bwd-readability-container figure {
+            margin: 28px 0 !important;
+          }
+          .bwd-readability-container figcaption {
+            font-size: 13px !important;
+            color: #64748b !important;
+            margin-top: 8px !important;
+            text-align: center !important;
+            font-style: italic !important;
+          }
+          .bwd-readability-container blockquote {
+            border-left: 4px solid #38bdf8 !important;
+            padding-left: 18px !important;
+            margin: 26px 0 !important;
+            font-style: italic !important;
+            color: #0f172a !important;
+          }
+          .bwd-readability-container h2, .bwd-readability-container h3 {
+            color: #0f172a !important;
+            margin-top: 36px !important;
+            margin-bottom: 16px !important;
+            font-weight: 700 !important;
+          }
+        </style>
+      `;
+
+      frameDoc.head.insertAdjacentHTML('beforeend', editorialStyles);
+      frameDoc.body.innerHTML = cleanArticleHtml;
+
+      // Re-vincular eventos y herramientas en el nuevo contenido
+      initFrameEvents();
+      setTool(activeTool);
+      inlineAllImages(frameDoc).catch(() => {});
+
+      incrementChanges();
+      hideExportModal();
+      showToast("¡Artículo reacomodado con Mozilla Readability! Diseño editorial limpio y sin relleno.");
+
+    } catch (err) {
+      console.error("Error al reacomodar con Readability:", err);
+      hideExportModal();
+      showToast(`Error al reacomodar: ${err.message || err}`, true);
+    }
+  }
+
+  if (btnReorganize) {
+    btnReorganize.addEventListener('click', () => {
+      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
+      if (!frameDoc || !frameDoc.body) return;
+      reorganizeWithReadability(frameDoc);
+    });
+  }
+
   btnAutoRedact.addEventListener('click', () => {
     const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
     if (!frameDoc) return;
@@ -385,16 +867,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (lastAction.type === 'delete') {
       if (lastAction.parent) {
         lastAction.parent.insertBefore(lastAction.element, lastAction.nextSibling);
+        changesCount = Math.max(0, changesCount - 1);
+        changesCounterEl.textContent = `${changesCount} cambio${changesCount === 1 ? '' : 's'} realizado${changesCount === 1 ? '' : 's'}`;
         showToast("Elemento restaurado");
       }
+    } else if (lastAction.type === 'batch_delete') {
+      let restored = 0;
+      for (let i = lastAction.items.length - 1; i >= 0; i--) {
+        const item = lastAction.items[i];
+        if (item.parent) {
+          item.parent.insertBefore(item.element, item.nextSibling);
+          restored++;
+        }
+      }
+      changesCount = Math.max(0, changesCount - lastAction.items.length);
+      changesCounterEl.textContent = `${changesCount} cambio${changesCount === 1 ? '' : 's'} realizado${changesCount === 1 ? '' : 's'}`;
+      showToast(`¡Se restauraron ${restored} elementos!`);
     } else if (lastAction.type === 'redact') {
       lastAction.element.classList.remove('bwd-redacted-box');
       lastAction.element.style.backgroundColor = lastAction.origBg || '';
       lastAction.element.style.color = lastAction.origColor || '';
+      changesCount = Math.max(0, changesCount - 1);
+      changesCounterEl.textContent = `${changesCount} cambio${changesCount === 1 ? '' : 's'} realizado${changesCount === 1 ? '' : 's'}`;
       showToast("Censura deshecha");
     } else if (lastAction.type === 'text') {
       lastAction.element.innerText = lastAction.oldText;
+      changesCount = Math.max(0, changesCount - 1);
+      changesCounterEl.textContent = `${changesCount} cambio${changesCount === 1 ? '' : 's'} realizado${changesCount === 1 ? '' : 's'}`;
       showToast("Texto restaurado");
+    } else if (lastAction.type === 'full_reorganize') {
+      const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
+      if (frameDoc && frameDoc.body) {
+        frameDoc.body.innerHTML = lastAction.origBody;
+        frameDoc.head.innerHTML = lastAction.origHead;
+        initFrameEvents();
+        setTool(activeTool);
+        inlineAllImages(frameDoc).catch(() => {});
+        changesCount = Math.max(0, changesCount - 1);
+        changesCounterEl.textContent = `${changesCount} cambio${changesCount === 1 ? '' : 's'} realizado${changesCount === 1 ? '' : 's'}`;
+        showToast("Diseño web original restaurado.");
+      }
     }
   });
 
@@ -727,16 +1239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             clonedDoc.head.insertBefore(baseTag, clonedDoc.head.firstChild);
           }
 
-          // B. Transferir fuentes cargadas para que html2canvas use las métricas exactas y no colapse palabras
-          if (frameDoc.fonts && clonedDoc.fonts) {
-            try {
-              frameDoc.fonts.forEach(font => {
-                try { clonedDoc.fonts.add(font); } catch (_) {}
-              });
-            } catch (_) {}
-          }
-
-          // C. Transferir hojas de estilo y fuentes incrustadas del head
+          // B. Transferir hojas de estilo y fuentes incrustadas del documento original
           frameDoc.querySelectorAll('link[rel="stylesheet"], style').forEach(st => {
             if (!st.id || !clonedDoc.getElementById(st.id)) {
               try {
@@ -745,18 +1248,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           });
 
-          // D. Inyectar regla global de separación fiel de palabras, tipografía y supresión de scrollbars
+          // C. Inyectar regla global de separación fiel de palabras, tipografía y supresión de scrollbars
           const styleEl = clonedDoc.createElement('style');
           styleEl.id = 'bwd-typography-and-scrollbars';
           styleEl.textContent = `
             *, *::before, *::after {
-              letter-spacing: 0.02px !important;
-              font-variant: normal !important;
-              -webkit-font-variant: normal !important;
+              letter-spacing: normal !important;
+              word-spacing: normal !important;
+              font-kerning: normal !important;
               font-variant-ligatures: none !important;
               -webkit-font-variant-ligatures: none !important;
               text-rendering: geometricPrecision !important;
-              word-spacing: normal !important;
               scrollbar-width: none !important;
               -ms-overflow-style: none !important;
             }
