@@ -676,25 +676,149 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      showExportModal("Reacomodando con Mozilla Readability...", "Analizando estructura semántica y aislando el artículo...", 25);
+      showExportModal("Reacomodando con Mozilla Readability...", "Analizando estructura semántica y preservando imágenes...", 25);
 
-      // 1. Clonar el documento para que Readability lo procese sin alterar el original
+      const baseHref = frameDoc.baseURI || (cloneData && (cloneData.baseURI || cloneData.url)) || window.location.href;
+
+      // 1. Extraer con precisión la imagen principal de portada (Lead Image) y su epígrafe desde el DOM vivo
+      let leadImage = null;
+      const leadSelectors = [
+        '.article-main-media-image',
+        '[class*="main-media"]',
+        '[class*="lead-image"]',
+        '[class*="lead-media"]',
+        '[class*="featured-image"]',
+        '[class*="featured-media"]',
+        '[class*="foto-principal"]',
+        '[class*="imagen-principal"]',
+        '[class*="portada"]',
+        'article figure',
+        'main figure'
+      ];
+
+      for (const sel of leadSelectors) {
+        const container = frameDoc.querySelector(sel);
+        if (container) {
+          const img = container.querySelector('img') || (container.tagName === 'IMG' ? container : null);
+          if (img) {
+            const candidates = [
+              img.currentSrc,
+              img.getAttribute('src'),
+              img.getAttribute('data-src'),
+              img.getAttribute('data-original'),
+              img.getAttribute('data-lazy-src')
+            ];
+            let realSrc = '';
+            for (const c of candidates) {
+              if (c && typeof c === 'string' && !c.includes('data:image/svg') && !c.includes('placeholder')) {
+                realSrc = c;
+                break;
+              }
+            }
+            if (realSrc && !realSrc.includes('avatar') && !realSrc.includes('logo') && !realSrc.includes('icon')) {
+              try { realSrc = new URL(realSrc, baseHref).href; } catch (_) {}
+              const captionEl = container.querySelector('[class*="caption"], [class*="epigrafe"], figcaption, [class*="source"], [class*="credito"]');
+              const caption = captionEl ? captionEl.textContent.trim() : (img.getAttribute('alt') || '');
+              leadImage = { src: realSrc, caption };
+              break;
+            }
+          }
+        }
+      }
+
+      // Si no se halló por selectores, buscar el primer <img> representativo del artículo
+      if (!leadImage) {
+        const allImgs = Array.from(frameDoc.querySelectorAll('article img, main img, img'));
+        for (const img of allImgs) {
+          if (img.closest('header, nav, footer, aside, .sidebar')) continue;
+          const candidates = [
+            img.currentSrc,
+            img.getAttribute('src'),
+            img.getAttribute('data-src'),
+            img.getAttribute('data-original')
+          ];
+          let realSrc = '';
+          for (const c of candidates) {
+            if (c && typeof c === 'string' && !c.includes('data:image/svg') && !c.includes('placeholder')) {
+              realSrc = c;
+              break;
+            }
+          }
+          if (realSrc && !realSrc.includes('avatar') && !realSrc.includes('logo') && !realSrc.includes('icon')) {
+            const w = img.naturalWidth || img.clientWidth || 0;
+            if (w >= 180 || img.closest('article, main')) {
+              try { realSrc = new URL(realSrc, baseHref).href; } catch (_) {}
+              const parentFig = img.closest('figure, div');
+              const cap = parentFig ? parentFig.querySelector('figcaption, [class*="caption"], [class*="epigrafe"]') : null;
+              leadImage = { src: realSrc, caption: cap ? cap.textContent.trim() : (img.getAttribute('alt') || '') };
+              break;
+            }
+          }
+        }
+      }
+
+      // 2. Preparar el clon para Readability garantizando que NINGUNA imagen interna se pierda
       const docClone = frameDoc.cloneNode(true);
 
-      // Resolver imágenes relativas a absolutas antes del parseo
-      const baseHref = frameDoc.baseURI || (cloneData && (cloneData.baseURI || cloneData.url)) || window.location.href;
+      // A. Desenrollar etiquetas <picture> a <img> estándar
+      docClone.querySelectorAll('picture').forEach(pic => {
+        const img = pic.querySelector('img');
+        if (img) pic.replaceWith(img);
+      });
+
+      // B. Normalizar todos los <img> reemplazando lazy-load por URLs absolutas reales
       docClone.querySelectorAll('img').forEach(img => {
-        const src = img.getAttribute('src') || img.getAttribute('data-src');
-        if (src) {
+        const candidates = [
+          img.currentSrc,
+          img.getAttribute('src'),
+          img.getAttribute('data-src'),
+          img.getAttribute('data-original'),
+          img.getAttribute('data-lazy-src'),
+          img.getAttribute('data-url'),
+          img.getAttribute('data-retina')
+        ];
+        let realSrc = '';
+        for (const c of candidates) {
+          if (c && typeof c === 'string' && !c.includes('data:image/svg') && !c.includes('placeholder') && !c.includes('data:image/gif')) {
+            realSrc = c;
+            break;
+          }
+        }
+        if (realSrc) {
           try {
-            img.src = new URL(src, baseHref).href;
-          } catch (_) {}
+            const absUrl = new URL(realSrc, baseHref).href;
+            img.setAttribute('src', absUrl);
+            img.src = absUrl;
+          } catch (_) {
+            img.setAttribute('src', realSrc);
+          }
+        }
+        img.removeAttribute('data-src');
+        img.removeAttribute('data-original');
+        img.removeAttribute('data-lazy-src');
+        img.removeAttribute('srcset');
+        img.removeAttribute('data-srcset');
+        img.removeAttribute('loading');
+      });
+
+      // C. Convertir contenedores div de fotos en etiquetas <figure> semánticas
+      // (Mozilla Readability NUNCA elimina elementos si están dentro de un <figure>)
+      docClone.querySelectorAll('div[class*="media"], div[class*="image"], div[class*="foto"], div[class*="photo"], div[class*="figure"]').forEach(container => {
+        const img = container.querySelector('img');
+        if (img) {
+          const fig = docClone.createElement('figure');
+          fig.className = 'bwd-preserved-figure';
+          while (container.firstChild) {
+            fig.appendChild(container.firstChild);
+          }
+          container.replaceWith(fig);
         }
       });
 
       const reader = new window.Readability(docClone, {
         charThreshold: 20,
-        classesToPreserve: ['caption', 'epigrafe', 'bajada', 'copete']
+        keepClasses: true,
+        classesToPreserve: ['bwd-preserved-figure', 'caption', 'epigrafe', 'source', 'credito', 'bajada', 'copete']
       });
 
       const article = reader.parse();
@@ -705,7 +829,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      showExportModal("Reacomodando artículo...", "Generando maquetación editorial limpia...", 75);
+      showExportModal("Reacomodando artículo...", "Estructurando maquetación editorial con fotos y epígrafes...", 75);
 
       // Guardar estado previo para Deshacer
       undoStack.push({
@@ -714,14 +838,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         origHead: frameDoc.head.innerHTML
       });
 
-      // 2. Extraer o preservar la imagen principal si Readability no la capturó en el content
+      // 3. Ensamblar la imagen de portada si no está duplicada en el contenido extraído
       let leadImageHtml = '';
-      if (!article.content.includes('<img')) {
-        const firstImg = frameDoc.querySelector('article figure img, article img, main figure img, main img, .lead-image img, .portada img');
-        if (firstImg && firstImg.src && !firstImg.src.includes('avatar') && !firstImg.src.includes('logo')) {
+      if (leadImage && leadImage.src) {
+        // Si el cuerpo extraído por Readability ya incluye esta misma imagen, no duplicarla
+        if (!article.content.includes(leadImage.src)) {
           leadImageHtml = `
             <figure class="bwd-readability-lead-figure" style="margin: 28px 0; text-align: center;">
-              <img src="${firstImg.src}" style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" alt="${article.title || ''}">
+              <img src="${leadImage.src}" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); display: block; margin: 0 auto;" alt="${article.title || ''}">
+              ${leadImage.caption ? `<figcaption style="font-size: 13px; color: #64748b; margin-top: 8px; font-style: italic; text-align: center;">${leadImage.caption}</figcaption>` : ''}
             </figure>
           `;
         }
@@ -730,7 +855,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const siteTitle = article.siteName || (cloneData && cloneData.title ? cloneData.title.split('-')[0].trim() : 'Artículo Web');
       const authorByline = article.byline ? `<div class="bwd-readability-byline" style="font-size: 14px; color: #64748b; margin-bottom: 24px; font-weight: 500;">${article.byline}</div>` : '';
 
-      // 3. Estructurar el HTML editorial limpio
+      // 4. Estructurar el HTML editorial limpio y de alta fidelidad
       const cleanArticleHtml = `
         <article class="bwd-readability-container" style="max-width: 820px; margin: 40px auto; padding: 0 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.75;">
           <header class="bwd-readability-header" style="margin-bottom: 32px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
@@ -768,13 +893,17 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
           .bwd-readability-container figure {
             margin: 28px 0 !important;
+            text-align: center !important;
           }
-          .bwd-readability-container figcaption {
+          .bwd-readability-container figcaption,
+          .bwd-readability-container .caption,
+          .bwd-readability-container .epigrafe {
             font-size: 13px !important;
             color: #64748b !important;
             margin-top: 8px !important;
             text-align: center !important;
             font-style: italic !important;
+            display: block !important;
           }
           .bwd-readability-container blockquote {
             border-left: 4px solid #38bdf8 !important;
@@ -795,6 +924,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       frameDoc.head.insertAdjacentHTML('beforeend', editorialStyles);
       frameDoc.body.innerHTML = cleanArticleHtml;
 
+      // 5. Normalizar cualquier imagen interna en el DOM del iframe que haya quedado relativa
+      frameDoc.querySelectorAll('img').forEach(img => {
+        const s = img.getAttribute('src');
+        if (s && !s.startsWith('http') && !s.startsWith('data:')) {
+          try {
+            img.src = new URL(s, baseHref).href;
+          } catch (_) {}
+        }
+      });
+
       // Re-vincular eventos y herramientas en el nuevo contenido
       initFrameEvents();
       setTool(activeTool);
@@ -802,7 +941,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       incrementChanges();
       hideExportModal();
-      showToast("¡Artículo reacomodado con Mozilla Readability! Diseño editorial limpio y sin relleno.");
+      showToast("¡Artículo reacomodado con fotos y epígrafes preservados!");
 
     } catch (err) {
       console.error("Error al reacomodar con Readability:", err);
