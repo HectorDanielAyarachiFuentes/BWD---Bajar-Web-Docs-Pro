@@ -831,11 +831,67 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       showExportModal("Reacomodando artículo...", "Estructurando maquetación editorial con fotos y epígrafes...", 75);
 
-      // Guardar estado previo para Deshacer
+      // Inyectar estilos editoriales limpios dentro del iframe
+      let styleEl = frameDoc.getElementById('bwd-readability-internal-styles');
+      if (!styleEl) {
+        styleEl = frameDoc.createElement('style');
+        styleEl.id = 'bwd-readability-internal-styles';
+        frameDoc.head.appendChild(styleEl);
+      }
+      styleEl.textContent = `
+        body {
+          background-color: #ffffff !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        .bwd-readability-container p {
+          font-size: 18px !important;
+          line-height: 1.8 !important;
+          margin: 0 0 22px 0 !important;
+          color: #334155 !important;
+        }
+        .bwd-readability-container img {
+          max-width: 100% !important;
+          height: auto !important;
+          border-radius: 8px !important;
+          margin: 20px auto !important;
+          display: block !important;
+        }
+        .bwd-readability-container figure {
+          margin: 28px 0 !important;
+          text-align: center !important;
+        }
+        .bwd-readability-container figcaption,
+        .bwd-readability-container .caption,
+        .bwd-readability-container .epigrafe {
+          font-size: 13px !important;
+          color: #64748b !important;
+          margin-top: 8px !important;
+          text-align: center !important;
+          font-style: italic !important;
+          display: block !important;
+        }
+        .bwd-readability-container blockquote {
+          border-left: 4px solid #38bdf8 !important;
+          padding-left: 18px !important;
+          margin: 26px 0 !important;
+          font-style: italic !important;
+          color: #0f172a !important;
+        }
+        .bwd-readability-container h2, .bwd-readability-container h3 {
+          color: #0f172a !important;
+          margin-top: 36px !important;
+          margin-bottom: 16px !important;
+          font-weight: 700 !important;
+        }
+      `;
+
+      // Guardar nodos previos para Deshacer
+      const savedNodes = Array.from(frameDoc.body.childNodes).map(n => n.cloneNode(true));
       undoStack.push({
         type: 'full_reorganize',
-        origBody: frameDoc.body.innerHTML,
-        origHead: frameDoc.head.innerHTML
+        origNodes: savedNodes,
+        styleEl: styleEl
       });
 
       // 3. Ensamblar la imagen de portada si no está duplicada en el contenido extraído
@@ -870,59 +926,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         </article>
       `;
 
-      // Inyectar estilos editoriales limpios dentro del iframe
-      const editorialStyles = `
-        <style id="bwd-readability-internal-styles">
-          body {
-            background-color: #ffffff !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          .bwd-readability-container p {
-            font-size: 18px !important;
-            line-height: 1.8 !important;
-            margin: 0 0 22px 0 !important;
-            color: #334155 !important;
-          }
-          .bwd-readability-container img {
-            max-width: 100% !important;
-            height: auto !important;
-            border-radius: 8px !important;
-            margin: 20px auto !important;
-            display: block !important;
-          }
-          .bwd-readability-container figure {
-            margin: 28px 0 !important;
-            text-align: center !important;
-          }
-          .bwd-readability-container figcaption,
-          .bwd-readability-container .caption,
-          .bwd-readability-container .epigrafe {
-            font-size: 13px !important;
-            color: #64748b !important;
-            margin-top: 8px !important;
-            text-align: center !important;
-            font-style: italic !important;
-            display: block !important;
-          }
-          .bwd-readability-container blockquote {
-            border-left: 4px solid #38bdf8 !important;
-            padding-left: 18px !important;
-            margin: 26px 0 !important;
-            font-style: italic !important;
-            color: #0f172a !important;
-          }
-          .bwd-readability-container h2, .bwd-readability-container h3 {
-            color: #0f172a !important;
-            margin-top: 36px !important;
-            margin-bottom: 16px !important;
-            font-weight: 700 !important;
-          }
-        </style>
-      `;
-
-      frameDoc.head.insertAdjacentHTML('beforeend', editorialStyles);
-      frameDoc.body.innerHTML = cleanArticleHtml;
+      const parser = new DOMParser();
+      const parsedDoc = parser.parseFromString(cleanArticleHtml, 'text/html');
+      const articleNode = parsedDoc.body.firstElementChild;
+      if (articleNode) {
+        frameDoc.body.replaceChildren(articleNode);
+      }
 
       // 5. Normalizar cualquier imagen interna en el DOM del iframe que haya quedado relativa
       frameDoc.querySelectorAll('img').forEach(img => {
@@ -1037,8 +1046,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (lastAction.type === 'full_reorganize') {
       const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
       if (frameDoc && frameDoc.body) {
-        frameDoc.body.innerHTML = lastAction.origBody;
-        frameDoc.head.innerHTML = lastAction.origHead;
+        if (lastAction.styleEl && lastAction.styleEl.parentNode) {
+          lastAction.styleEl.remove();
+        }
+        if (lastAction.origNodes) {
+          frameDoc.body.replaceChildren(...lastAction.origNodes.map(n => n.cloneNode(true)));
+        }
         initFrameEvents();
         setTool(activeTool);
         inlineAllImages(frameDoc).catch(() => {});
@@ -2315,7 +2328,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (msg && msg.includes('(') && msg.endsWith(')')) {
       const match = msg.match(/^(.*?)\s*\((.*?)\)$/);
       if (match) {
-        toastMessage.innerHTML = `<span style="font-weight:600;">${match[1]}</span><span style="display:inline-block; margin-left:6px; opacity:0.85; font-size:11px; background:rgba(255,255,255,0.08); padding:1px 6px; border-radius:4px; font-family:ui-monospace, monospace;">${match[2]}</span>`;
+        toastMessage.textContent = '';
+        const msgSpan = document.createElement('span');
+        msgSpan.style.fontWeight = '600';
+        msgSpan.textContent = match[1];
+        const fileSpan = document.createElement('span');
+        fileSpan.style.display = 'inline-block';
+        fileSpan.style.marginLeft = '6px';
+        fileSpan.style.opacity = '0.85';
+        fileSpan.style.fontSize = '11px';
+        fileSpan.style.background = 'rgba(255,255,255,0.08)';
+        fileSpan.style.padding = '1px 6px';
+        fileSpan.style.borderRadius = '4px';
+        fileSpan.style.fontFamily = 'ui-monospace, monospace';
+        fileSpan.textContent = match[2];
+        toastMessage.appendChild(msgSpan);
+        toastMessage.appendChild(fileSpan);
       } else {
         toastMessage.textContent = msg;
       }
