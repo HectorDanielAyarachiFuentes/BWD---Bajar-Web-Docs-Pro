@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const pageOriginEl = document.getElementById('pageOrigin');
   const changesCounterEl = document.getElementById('changesCounter');
   const activeToolHintEl = document.getElementById('activeToolHint');
+  const activeModeBadge = document.getElementById('activeModeBadge');
   const toastNotification = document.getElementById('toastNotification');
   const toastMessage = document.getElementById('toastMessage');
 
@@ -98,26 +99,63 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Estilos del editor inyectados dentro del iframe
     const editorInjectedStyles = `
       <style id="bwd-editor-internal-css">
-        /* Estilos interactivos para el Modo Creador */
-        body[data-bwd-tool="edit"] [contenteditable="true"]:focus {
-          outline: 2px solid #3b82f6 !important;
-          outline-offset: 2px !important;
-          background-color: rgba(59, 130, 246, 0.08) !important;
-          border-radius: 3px !important;
+        /* Estilos interactivos de UX/UI para el Modo Creador */
+
+        /* 1. Modo Editar: Hover interactivo para identificar texto editable */
+        body[data-bwd-tool="edit"] h1:hover,
+        body[data-bwd-tool="edit"] h2:hover,
+        body[data-bwd-tool="edit"] h3:hover,
+        body[data-bwd-tool="edit"] h4:hover,
+        body[data-bwd-tool="edit"] h5:hover,
+        body[data-bwd-tool="edit"] h6:hover,
+        body[data-bwd-tool="edit"] p:hover,
+        body[data-bwd-tool="edit"] span:hover,
+        body[data-bwd-tool="edit"] a:hover,
+        body[data-bwd-tool="edit"] li:hover,
+        body[data-bwd-tool="edit"] td:hover,
+        body[data-bwd-tool="edit"] th:hover,
+        body[data-bwd-tool="edit"] figcaption:hover,
+        body[data-bwd-tool="edit"] blockquote:hover,
+        body[data-bwd-tool="edit"] [class*="title"]:hover,
+        body[data-bwd-tool="edit"] [class*="text"]:hover,
+        body[data-bwd-tool="edit"] [class*="epigrafe"]:hover,
+        body[data-bwd-tool="edit"] [class*="bajada"]:hover,
+        body[data-bwd-tool="edit"] [class*="author"]:hover {
+          outline: 1.5px dashed rgba(56, 189, 248, 0.5) !important;
+          outline-offset: 3px !important;
+          background-color: rgba(56, 189, 248, 0.05) !important;
+          border-radius: 4px !important;
+          cursor: text !important;
+          transition: outline-color 0.15s ease, background-color 0.15s ease;
         }
 
+        body[data-bwd-tool="edit"] [contenteditable="true"] {
+          outline: 2px solid #38bdf8 !important;
+          outline-offset: 3px !important;
+          background-color: rgba(56, 189, 248, 0.08) !important;
+          box-shadow: 0 0 14px rgba(56, 189, 248, 0.3) !important;
+          border-radius: 4px !important;
+          cursor: text !important;
+        }
+
+        /* 2. Modo Eliminar */
         body[data-bwd-tool="delete"] *:hover {
-          outline: 2px dashed #ef4444 !important;
-          outline-offset: 1px !important;
+          outline: 2px dashed #f43f5e !important;
+          outline-offset: 2px !important;
           cursor: not-allowed !important;
-          background-color: rgba(239, 68, 68, 0.1) !important;
+          background-color: rgba(244, 63, 94, 0.12) !important;
+          border-radius: 4px !important;
+          box-shadow: 0 0 12px rgba(244, 63, 94, 0.2) !important;
         }
 
+        /* 3. Modo Censurar */
         body[data-bwd-tool="redact"] *:hover {
-          outline: 2px dashed #8b5cf6 !important;
-          outline-offset: 1px !important;
+          outline: 2px dashed #a855f7 !important;
+          outline-offset: 2px !important;
           cursor: crosshair !important;
-          background-color: rgba(139, 92, 246, 0.12) !important;
+          background-color: rgba(168, 85, 247, 0.14) !important;
+          border-radius: 4px !important;
+          box-shadow: 0 0 12px rgba(168, 85, 247, 0.2) !important;
         }
 
         .bwd-redacted-box {
@@ -341,6 +379,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     toolEditBtn.classList.toggle('is-active', tool === 'edit');
     toolDeleteBtn.classList.toggle('is-active', tool === 'delete');
     toolRedactBtn.classList.toggle('is-active', tool === 'redact');
+
+    if (activeModeBadge) {
+      if (tool === 'edit') {
+        activeModeBadge.textContent = "MODO EDITAR";
+        activeModeBadge.className = "guide-mode-tag tag-edit";
+      } else if (tool === 'delete') {
+        activeModeBadge.textContent = "MODO ELIMINAR";
+        activeModeBadge.className = "guide-mode-tag tag-delete";
+      } else if (tool === 'redact') {
+        activeModeBadge.textContent = "MODO CENSURAR";
+        activeModeBadge.className = "guide-mode-tag tag-redact";
+      }
+    }
 
     // Actualizar atributo en iframe
     const frameDoc = cloneFrame.contentDocument || cloneFrame.contentWindow.document;
@@ -913,9 +964,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // 4. Estructurar el HTML editorial limpio y de alta fidelidad
       const cleanArticleHtml = `
-        <article class="bwd-readability-container" style="max-width: 820px; margin: 40px auto; padding: 0 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.75;">
-          <header class="bwd-readability-header" style="margin-bottom: 32px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-            <span class="bwd-readability-site" style="display: inline-block; padding: 3px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #0284c7; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;">${siteTitle}</span>
+        <article class="bwd-readability-container" style="max-width: 820px; margin: 24px auto 48px; padding: 0 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.75;">
+          <header class="bwd-readability-header" style="margin-bottom: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 20px;">
+            <span class="bwd-readability-site" style="display: inline-block; padding: 3px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #0284c7; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; border: 1px solid rgba(56, 189, 248, 0.25);">${siteTitle}</span>
             <h1 class="bwd-readability-title" style="font-size: 32px; font-weight: 800; line-height: 1.25; color: #0f172a; margin: 0 0 16px 0; letter-spacing: -0.02em;">${article.title}</h1>
             ${authorByline}
           </header>
