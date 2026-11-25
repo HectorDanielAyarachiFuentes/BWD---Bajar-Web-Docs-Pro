@@ -2350,15 +2350,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     return `${clean}_editado.${ext}`;
   }
 
-  function triggerDownloadBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    triggerDownloadUrl(url, filename);
+  function getOrganizedPath(filename) {
+    if (!filename) return filename;
+    if (filename.includes('/') || filename.includes('\\')) return filename;
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    let folder = '';
+    switch (ext) {
+      case 'pdf': folder = 'PDFs'; break;
+      case 'doc': case 'docx': case 'rtf': case 'odt': case 'txt': folder = 'Documentos'; break;
+      case 'png': case 'jpg': case 'jpeg': case 'webp': case 'svg': folder = 'Imágenes'; break;
+      case 'html': case 'htm': case 'json': case 'xml': folder = 'Código'; break;
+      case 'zip': case 'rar': case '7z': case 'tar': case 'gz': folder = 'Comprimidos'; break;
+      default: folder = '';
+    }
+    return folder ? `${folder}/${filename}` : filename;
   }
 
-  function triggerDownloadUrl(url, filename) {
+  async function triggerDownloadBlob(blob, filename) {
+    const targetFilename = getOrganizedPath(filename);
+    const api = typeof browser !== 'undefined' ? browser : chrome;
+    const url = URL.createObjectURL(blob);
+
+    if (api && api.downloads && api.downloads.download) {
+      try {
+        await api.downloads.download({
+          url: url,
+          filename: targetFilename,
+          saveAs: false
+        });
+        setTimeout(() => URL.revokeObjectURL(url), 15000);
+        return;
+      } catch (e) {
+        console.warn("Error en api.downloads, usando fallback a <a>:", e);
+      }
+    }
+    triggerDownloadUrl(url, targetFilename);
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+  }
+
+  async function triggerDownloadUrl(url, filename) {
+    const targetFilename = getOrganizedPath(filename);
+    const api = typeof browser !== 'undefined' ? browser : chrome;
+    if (api && api.downloads && api.downloads.download && !url.startsWith('blob:')) {
+      try {
+        await api.downloads.download({
+          url: url,
+          filename: targetFilename,
+          saveAs: false
+        });
+        return;
+      } catch (e) {
+        console.warn("Error en api.downloads, usando fallback a <a>:", e);
+      }
+    }
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = targetFilename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

@@ -103,6 +103,49 @@ function setBusy(isBusy) {
   });
 }
 
+function getOrganizedPath(filename) {
+  if (!filename) return filename;
+  if (filename.includes('/') || filename.includes('\\')) return filename;
+
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+  let folder = '';
+  switch (ext) {
+    case 'pdf':
+      folder = 'PDFs';
+      break;
+    case 'doc':
+    case 'docx':
+    case 'rtf':
+    case 'odt':
+    case 'txt':
+      folder = 'Documentos';
+      break;
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'webp':
+    case 'svg':
+      folder = 'Imágenes';
+      break;
+    case 'html':
+    case 'htm':
+    case 'json':
+    case 'xml':
+      folder = 'Código';
+      break;
+    case 'zip':
+    case 'rar':
+    case '7z':
+    case 'tar':
+    case 'gz':
+      folder = 'Comprimidos';
+      break;
+    default:
+      folder = '';
+  }
+  return folder ? `${folder}/${filename}` : filename;
+}
+
 function sanitizeFilename(title, ext) {
   const clean = (title || 'documento_web')
     .replace(/[\\/:*?"<>|]/g, '_')
@@ -111,20 +154,34 @@ function sanitizeFilename(title, ext) {
   return `${clean}_${Date.now().toString().slice(-4)}.${ext}`;
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function triggerDownload(blobOrUrl, filename) {
   let downloadUrl = blobOrUrl;
   let isCreatedObjectUrl = false;
+  const targetFilename = getOrganizedPath(filename);
 
   if (blobOrUrl instanceof Blob) {
-    downloadUrl = URL.createObjectURL(blobOrUrl);
-    isCreatedObjectUrl = true;
+    try {
+      downloadUrl = await blobToDataUrl(blobOrUrl);
+    } catch (e) {
+      downloadUrl = URL.createObjectURL(blobOrUrl);
+      isCreatedObjectUrl = true;
+    }
   }
 
   try {
     if (typeof browser !== 'undefined' && browser.downloads && browser.downloads.download) {
       await browser.downloads.download({
         url: downloadUrl,
-        filename: filename,
+        filename: targetFilename,
         saveAs: false
       });
       if (isCreatedObjectUrl) {
@@ -138,7 +195,7 @@ async function triggerDownload(blobOrUrl, filename) {
 
   const a = document.createElement('a');
   a.href = downloadUrl;
-  a.download = filename;
+  a.download = targetFilename;
   document.body.appendChild(a);
   a.click();
   a.remove();
