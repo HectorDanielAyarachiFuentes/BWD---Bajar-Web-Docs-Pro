@@ -783,11 +783,15 @@ body[data-page-tone="dark"] .action-row {
    5. Barra de Progreso con Animación Shimmer (Skill-UL)
    -------------------------------------------------------------------------- */
 .progress-container {
+  width: 100%;
+  max-width: 100%;
   padding: 10px 14px;
-  background: rgba(18, 20, 32, 0.85);
+  background: rgba(18, 20, 32, 0.88);
   border: 1px solid rgba(56, 189, 248, 0.35);
   border-radius: 10px;
   box-shadow: 0 0 20px rgba(2, 132, 199, 0.2);
+  overflow: hidden;
+  box-sizing: border-box;
   animation: fadeIn 0.2s var(--pro-ease-fluid);
 }
 
@@ -800,16 +804,27 @@ body[data-page-tone="dark"] .action-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
   font-size: 11.5px;
   margin-bottom: 6px;
 }
 
 .progress-task {
+  flex: 1;
+  min-width: 0;
   color: #e2e8f0;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .progress-val {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: #38bdf8;
 }
@@ -855,6 +870,8 @@ body[data-page-tone="dark"] .action-row {
   align-items: flex-start;
   gap: 10px;
   width: 100%;
+  max-width: 100%;
+  overflow: hidden;
   font-size: 11.5px;
   line-height: 1.45;
   color: #e2e8f0;
@@ -871,10 +888,19 @@ body[data-page-tone="dark"] .action-row {
   transition: all 0.22s var(--pro-ease-fluid);
 }
 
+#statusText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .status-title {
   display: block;
   font-weight: 600;
   color: #f8fafc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-indicator.is-success .status-title {
@@ -890,7 +916,9 @@ body[data-page-tone="dark"] .action-row {
 }
 
 .status-file-pill {
-  display: inline-block;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
   margin-top: 4px;
   padding: 2px 8px;
   background: rgba(255, 255, 255, 0.06);
@@ -899,6 +927,9 @@ body[data-page-tone="dark"] .action-row {
   font-size: 10px;
   color: #94a3b8;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-dot {

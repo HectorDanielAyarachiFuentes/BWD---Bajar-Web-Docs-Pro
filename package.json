@@ -1,11 +1,12 @@
 {
   "name": "vibecoding-dulce",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build:ext": "npx web-ext build --overwrite-dest"
+    "build:ext": "npx web-ext build --overwrite-dest",
+    "zip": "powershell -ExecutionPolicy Bypass -File scripts/build-zip.ps1"
   },
   "keywords": [],
   "author": "",
