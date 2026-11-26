@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const pill = document.createElement('span');
       const kindClass = (act.type === 'delete') ? 'kind-delete'
         : (m.kind === 'redact') ? 'kind-redact'
-        : (m.kind === 'clean') ? 'kind-clean' : 'kind-edit';
+          : (m.kind === 'clean') ? 'kind-clean' : 'kind-edit';
       pill.className = `change-kind-pill ${kindClass}`;
       pill.textContent = m.badge || 'CAMBIO';
 
@@ -806,9 +806,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               el.style.setProperty('top', 'auto', 'important');
               el.style.setProperty('transform', 'none', 'important');
             }
-          } catch (_) {}
+          } catch (_) { }
         });
-      } catch (_) {}
+      } catch (_) { }
     }
 
     function activateFrame() {
@@ -823,7 +823,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       inlineAllImages(doc).then(() => {
         stabilizeClonedTopLayout(doc);
         if (!isExporting) scheduleLivePreviewSync(true);
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     activateFrame();
@@ -839,7 +839,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --------------------------------------------------------------------------
   function clearInspectorHover() {
     if (hoveredInspectorEl) {
-      try { hoveredInspectorEl.removeAttribute('data-bwd-hovered'); } catch (_) {}
+      try { hoveredInspectorEl.removeAttribute('data-bwd-hovered'); } catch (_) { }
       hoveredInspectorEl = null;
     }
     if (inspectorHud) inspectorHud.style.display = 'none';
@@ -876,7 +876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     if (hoveredInspectorEl && hoveredInspectorEl !== el) {
-      try { hoveredInspectorEl.removeAttribute('data-bwd-hovered'); } catch (_) {}
+      try { hoveredInspectorEl.removeAttribute('data-bwd-hovered'); } catch (_) { }
     }
     hoveredInspectorEl = el;
     el.setAttribute('data-bwd-hovered', activeTool === 'delete' ? 'delete' : 'redact');
@@ -912,7 +912,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ctx.drawImage(temp, 0, 0, smallW, smallH, 0, 0, w, h);
         const url = canvas.toDataURL('image/png');
         if (url && url.startsWith('data:image/')) return url;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     ctx.fillStyle = '#0f172a';
@@ -1023,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const oldHtml = activeEditingOldHtml;
     activeEditingEl = null;
     activeEditingOldHtml = '';
-    try { el.removeAttribute('contenteditable'); } catch (_) {}
+    try { el.removeAttribute('contenteditable'); } catch (_) { }
     if (textFormatBar) textFormatBar.style.display = 'none';
 
     const newHtml = el.innerHTML;
@@ -1507,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           seen.add(el);
           itemsToRemove.push(el);
         });
-      } catch (_) {}
+      } catch (_) { }
     });
 
     // Sidebars secundarias fuera del artículo principal (respetando callouts <aside> dentro de documentación)
@@ -1522,7 +1522,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         seen.add(el);
         itemsToRemove.push(el);
       });
-    } catch (_) {}
+    } catch (_) { }
 
     // Barras flotantes/fijas invasivas al pie o sobre el contenido
     const win = cloneFrame.contentWindow || window;
@@ -1541,9 +1541,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               }
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       });
-    } catch (_) {}
+    } catch (_) { }
 
     // Detección de cabeceras duplicadas usando coordenadas absolutas del documento (independiente del scroll)
     try {
@@ -1583,7 +1583,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     const batchItems = [];
     const styleFixes = [];
@@ -1626,7 +1626,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           rootEl.style.setProperty('overflow-y', 'auto', 'important');
           rootEl.style.setProperty('position', 'static', 'important');
         }
-      } catch (_) {}
+      } catch (_) { }
     });
 
     if (batchItems.length > 0 || styleFixes.length > 0) {
@@ -1671,7 +1671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const palettes = {
       light: { bg: '#ffffff', text: '#334155', heading: '#0f172a', muted: '#64748b', border: '#e2e8f0', badgeBg: 'rgba(56, 189, 248, 0.12)', badgeText: '#0284c7' },
       sepia: { bg: '#fbf6ec', text: '#3d3122', heading: '#231b10', muted: '#78664e', border: '#e6dac6', badgeBg: 'rgba(180, 83, 9, 0.12)', badgeText: '#92400e' },
-      dark:  { bg: '#0b0e17', text: '#cbd5e1', heading: '#f8fafc', muted: '#94a3b8', border: '#1e293b', badgeBg: 'rgba(56, 189, 248, 0.16)', badgeText: '#38bdf8' }
+      dark: { bg: '#0b0e17', text: '#cbd5e1', heading: '#f8fafc', muted: '#94a3b8', border: '#1e293b', badgeBg: 'rgba(56, 189, 248, 0.16)', badgeText: '#38bdf8' }
     };
     const p = palettes[readerTheme] || palettes.light;
 
@@ -1840,7 +1840,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               }
             }
             if (realSrc && !realSrc.includes('avatar') && !realSrc.includes('logo') && !realSrc.includes('icon')) {
-              try { if (!realSrc.startsWith('data:')) realSrc = new URL(realSrc, baseHref).href; } catch (_) {}
+              try { if (!realSrc.startsWith('data:')) realSrc = new URL(realSrc, baseHref).href; } catch (_) { }
               const captionEl = container.querySelector('[class*="caption"], [class*="epigrafe"], figcaption, [class*="source"], [class*="credito"]');
               const caption = captionEl ? captionEl.textContent.trim() : (img.getAttribute('alt') || '');
               leadImage = { src: realSrc, caption };
@@ -1859,7 +1859,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const w = img.naturalWidth || img.clientWidth || 0;
             if (w >= 180 || img.closest('article, main')) {
               let resolved = realSrc;
-              try { if (!resolved.startsWith('data:')) resolved = new URL(resolved, baseHref).href; } catch (_) {}
+              try { if (!resolved.startsWith('data:')) resolved = new URL(resolved, baseHref).href; } catch (_) { }
               const parentFig = img.closest('figure, div');
               const cap = parentFig ? parentFig.querySelector('figcaption, [class*="caption"], [class*="epigrafe"]') : null;
               leadImage = { src: resolved, caption: cap ? cap.textContent.trim() : (img.getAttribute('alt') || '') };
@@ -1972,7 +1972,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, 1);
 
       setTool(activeTool);
-      await inlineAllImages(frameDoc).catch(() => {});
+      await inlineAllImages(frameDoc).catch(() => { });
 
       hideExportModal();
       showToast("¡Artículo reacomodado preservando fotos, epígrafes y censuras!");
@@ -2039,7 +2039,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const rec = applyElementRedaction(el, redactStyle);
           if (rec) records.push(rec);
         });
-      } catch (_) {}
+      } catch (_) { }
     });
 
     // 2. Escáner Regex PII sobre nodos de texto (Emails, Montos/Balances, Tarjetas/Cuentas, Teléfonos)
@@ -2655,7 +2655,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 6. Inliner Universal de Imágenes Reales (Bypass de CORS y Eliminación de Cajas Grises)
   // --------------------------------------------------------------------------
 
-  async function inlineAllImages(doc, onProgress = () => {}) {
+  async function inlineAllImages(doc, onProgress = () => { }) {
     if (!doc) return;
 
     const baseHref = doc.baseURI || cloneData?.baseURI || cloneData?.url || window.location.href;
@@ -2675,7 +2675,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function fetchAsDataUrl(rawUrl) {
       if (!rawUrl || rawUrl.startsWith('data:')) return rawUrl;
       let absUrl = rawUrl;
-      try { absUrl = new URL(rawUrl, baseHref).href; } catch (_) {}
+      try { absUrl = new URL(rawUrl, baseHref).href; } catch (_) { }
       if (!absUrl.startsWith('http')) return '';
       const resp = await fetch(absUrl);
       if (!resp.ok) return '';
@@ -2796,13 +2796,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           isDark = lum < 128;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     return { bgColor, isDark, bgR, bgG, bgB };
   }
 
   // Motor Nativo de Captura del Compositor Firefox sobre el Iframe (Cero HUD, cero hover, cero barra de scroll)
-  async function captureIframeViaNativeCompositor(frameDoc, onProgress = () => {}) {
+  async function captureIframeViaNativeCompositor(frameDoc, onProgress = () => { }) {
     const win = cloneFrame.contentWindow;
     if (!win || typeof browser === 'undefined' || !browser.tabs || !browser.tabs.captureVisibleTab) {
       return null;
@@ -2917,7 +2917,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               el.style.setProperty('transform', 'none', 'important');
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       });
 
       await new Promise(r => requestAnimationFrame(r));
@@ -2958,7 +2958,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 trackedEls.add(el);
               }
             }
-          } catch (_) {}
+          } catch (_) { }
         });
       };
 
@@ -3079,7 +3079,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (item.el && item.el.__bwd_cap_saved) delete item.el.__bwd_cap_saved;
           if (item.val) item.el.style.setProperty(item.prop, item.val);
           else item.el.style.removeProperty(item.prop);
-        } catch (_) {}
+        } catch (_) { }
       }
       if (frameDoc.body) {
         frameDoc.body.removeAttribute('data-bwd-exporting');
@@ -3093,7 +3093,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function captureEditorCanvas(onProgress = () => {}) {
+  async function captureEditorCanvas(onProgress = () => { }) {
     isExporting = true;
     commitActiveTextEdit();
     closeImagePopover();
@@ -3114,7 +3114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             frameDoc.fonts.ready,
             new Promise(r => setTimeout(r, 1500))
           ]);
-        } catch (_) {}
+        } catch (_) { }
       }
 
       onProgress("Incrustando imágenes y fondos de alta definición...", 15);
@@ -3210,7 +3210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             frameDoc.querySelectorAll('link[rel="stylesheet"], style').forEach(st => {
               if (st.id === 'bwd-editor-internal-css') return;
               if (!st.id || !clonedDoc.getElementById(st.id)) {
-                try { clonedDoc.head.appendChild(st.cloneNode(true)); } catch (_) {}
+                try { clonedDoc.head.appendChild(st.cloneNode(true)); } catch (_) { }
               }
             });
 
@@ -3246,7 +3246,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                   }
                 }
-              } catch (_) {}
+              } catch (_) { }
             });
           }
         });
@@ -3309,7 +3309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function sliceCanvasForA4(canvas, onProgress = () => {}) {
+  function sliceCanvasForA4(canvas, onProgress = () => { }) {
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
 
@@ -3601,7 +3601,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           });
         }
-      } catch (_) {}
+      } catch (_) { }
     }
     return textBlocks;
   }
@@ -4025,7 +4025,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 baseline: 'top',
                 renderingMode: 'invisible'
               });
-            } catch (_) {}
+            } catch (_) { }
           }
         }
       }
@@ -4171,7 +4171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const inlineStyle = frameDoc.createElement('style');
             inlineStyle.textContent = cssText;
             linkEl.replaceWith(inlineStyle);
-          } catch (_) {}
+          } catch (_) { }
         }));
 
         // 2. Remover atributos y CSS internos exclusivos del editor
@@ -4214,7 +4214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         clonedDoc.querySelectorAll('a[href]').forEach(a => {
           const h = a.getAttribute('href') || '';
           if (h && !h.startsWith('#') && !h.startsWith('javascript:') && !h.startsWith('mailto:') && !h.startsWith('tel:')) {
-            try { a.setAttribute('href', new URL(h, baseHref).href); } catch (_) {}
+            try { a.setAttribute('href', new URL(h, baseHref).href); } catch (_) { }
           }
         });
         clonedDoc.querySelectorAll('base').forEach(b => b.remove());
