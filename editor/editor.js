@@ -4031,6 +4031,38 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       showExportModal("Compilando archivo PDF...", "Guardando en carpeta PDFs...", 96);
+      // Enlaces cliqueables reales solo en modo continuo (paridad con el panel Exportar)
+      if (effectiveMode !== 'a4') {
+        try {
+          const fWin = cloneFrame.contentWindow || window;
+          const dEl = frameDoc.documentElement;
+          const bdy = frameDoc.body;
+          const pageSize = pdf.internal.pageSize;
+          const pW = pageSize.getWidth();
+          const pH = pageSize.getHeight();
+          const linkFullW = Math.max(bdy ? bdy.scrollWidth : 0, dEl ? dEl.scrollWidth : 0, dEl ? dEl.clientWidth : 0, 1);
+          const linkFullH = Math.max(bdy ? bdy.scrollHeight : 0, dEl ? dEl.scrollHeight : 0, dEl ? dEl.clientHeight : 0, 1);
+          const lsX = pW / linkFullW;
+          const lsY = pH / linkFullH;
+          const scX = fWin.scrollX || 0;
+          const scY = fWin.scrollY || 0;
+          const linkBase = frameDoc.baseURI || (cloneData && (cloneData.baseURI || cloneData.url)) || '';
+          frameDoc.querySelectorAll('a[href]').forEach(a => {
+            if (isNodeRedacted(a)) return;
+            const raw = (a.getAttribute('href') || '').trim();
+            if (!raw || raw.startsWith('#') || raw.startsWith('javascript:')) return;
+            let abs = '';
+            try { abs = new URL(raw, linkBase).href; } catch (_) { return; }
+            if (!/^https?:|^mailto:/i.test(abs)) return;
+            Array.from(a.getClientRects()).forEach(r => {
+              if (r.width < 4 || r.height < 4) return;
+              try {
+                pdf.link((r.left + scX) * lsX, (r.top + scY) * lsY, Math.max(2, r.width * lsX), Math.max(2, r.height * lsY), { url: abs });
+              } catch (_) {}
+            });
+          });
+        } catch (_) {}
+      }
       const filename = sanitizeName(cloneData ? cloneData.title : 'documento_editado', 'pdf');
       const pdfBlob = pdf.output('blob');
       await triggerDownloadBlob(pdfBlob, filename);
