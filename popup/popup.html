@@ -82,9 +82,13 @@
             <div class="action-meta">
               <div class="action-headline">
                 <span class="action-name">Descargar PDF Fiel</span>
-                <span class="tag-pill tag-primary">1 Sola Página</span>
+                <span class="card-mode-group" id="popupPdfModeGroup" aria-label="Formato PDF">
+                  <span role="button" tabindex="0" class="card-mode-pill is-active" data-pdf-mode="continuous" title="1 sola página continua con enlaces cliqueables y OCR">1 Pág</span>
+                  <span role="button" tabindex="0" class="card-mode-pill" data-pdf-mode="a4" title="Paginado A4 inteligente sin cortar renglones">A4</span>
+                  <span role="button" tabindex="0" class="card-mode-pill" data-pdf-mode="vector" title="Motor vectorial nativo puro de Firefox (saveAsPDF)">Vector</span>
+                </span>
               </div>
-              <p class="action-summary">Página completa sin cortes; colores y vectores exactos.</p>
+              <p class="action-summary" id="pdfSummaryText">Continuo sin cortes, enlaces activos y texto seleccionable.</p>
             </div>
             <div class="action-arrow">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -106,9 +110,13 @@
             <div class="action-meta">
               <div class="action-headline">
                 <span class="action-name">Exportar a Word</span>
-                <span class="tag-pill">Nativo .docx</span>
+                <span class="card-mode-group" id="popupDocxModeGroup" aria-label="Modo Word">
+                  <span role="button" tabindex="0" class="card-mode-pill is-active" data-docx-mode="rich" title="Documento Word 100% editable con fotos, tablas y links reales">Editable</span>
+                  <span role="button" tabindex="0" class="card-mode-pill" data-docx-mode="visual" title="Copia visual A4 sin cortar renglones">Visual</span>
+                  <span role="button" tabindex="0" class="card-mode-pill" data-docx-mode="hybrid" title="Copia visual A4 + texto editable estructurado">Híbrido</span>
+                </span>
               </div>
-              <p class="action-summary">Copia visual fiel de alta resolución en Word nativo.</p>
+              <p class="action-summary" id="docxSummaryText">Word .docx editable con fotos integradas, tablas y links.</p>
             </div>
             <div class="action-arrow">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -128,10 +136,14 @@
             </div>
             <div class="action-meta">
               <div class="action-headline">
-                <span class="action-name">Captura Completa HD</span>
-                <span class="tag-pill">Imagen PNG</span>
+                <span class="action-name">Captura PNG HD</span>
+                <span class="card-mode-group" id="popupPngModeGroup" aria-label="Alcance PNG">
+                  <span role="button" tabindex="0" class="card-mode-pill is-active" data-png-mode="full" title="Captura continua de toda la altura del sitio">Completa</span>
+                  <span role="button" tabindex="0" class="card-mode-pill" data-png-mode="visible" title="Captura instantánea solo del área visible">Visible</span>
+                  <span role="button" tabindex="0" id="btnCopyPngClipboard" class="card-mode-pill pill-action-copy" title="Copiar imagen directo al portapapeles (Ctrl+V)">📋 Copiar</span>
+                </span>
               </div>
-              <p class="action-summary">Captura continua de toda la altura del sitio web en alta definición.</p>
+              <p class="action-summary" id="pngSummaryText">Captura continua ultra nítida sin límite de memoria.</p>
             </div>
             <div class="action-arrow">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -151,9 +163,12 @@
             <div class="action-meta">
               <div class="action-headline">
                 <span class="action-name">Descargar HTML Web</span>
-                <span class="tag-pill">Página .html</span>
+                <span class="card-mode-group" id="popupHtmlModeGroup" aria-label="Modo HTML">
+                  <span role="button" tabindex="0" class="card-mode-pill is-active" data-html-mode="offline" title="SingleFile 100% offline con CSS, fotos y canvas incrustados">Offline</span>
+                  <span role="button" tabindex="0" class="card-mode-pill" data-html-mode="light" title="HTML limpio liviano sin alterar la pestaña abierta">Ligero</span>
+                </span>
               </div>
-              <p class="action-summary">Página web completa limpia con estilos y recursos preservados.</p>
+              <p class="action-summary" id="htmlSummaryText">Archivo único 100% offline con estilos e imágenes incrustadas.</p>
             </div>
             <div class="action-arrow">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -216,33 +231,62 @@
 
       <!-- PANEL 2: MODO CREADOR INTELIGENTE -->
       <div id="panelEditor" class="tab-panel" style="display: none;">
-        <div class="editor-promo-card">
+        <div class="editor-promo-card pro-spotlight-card">
           <div class="promo-badge-line">
-            <span class="promo-badge-tag"><span class="promo-dot"></span> Clonador en Vivo</span>
+            <span class="promo-badge-tag skill-badge-shine"><span class="promo-dot"></span> Clonador en Vivo · Sin Alterar Pestaña</span>
           </div>
           <h3 class="promo-title">Edita y Personaliza Antes de Exportar</h3>
           <p class="promo-desc">
-            Abre una copia exacta de esta página en una pestaña interactiva. Modifica textos (nombres, balances), borra avatares o bloques molestos y censura datos privados con 1 clic.
+            Abre una copia aislada de alta fidelidad en una nueva pestaña. Edita textos e imágenes, inspecciona bloques y aplica censura irreversible antes de exportar.
           </p>
 
           <ul class="editor-features-ul">
-            <li>
-              <span class="feat-icon">✏️</span>
-              <span><strong>Edición de Texto:</strong> Haz clic y escribe directamente.</span>
+            <li class="editor-feat-row">
+              <span class="feat-icon-box feat-cyan">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+              </span>
+              <span><strong>Texto e Imágenes:</strong> Formato en vivo y cambio de fotos.</span>
             </li>
-            <li>
-              <span class="feat-icon">🗑️</span>
-              <span><strong>Eliminar Elementos:</strong> Quita fotos, banners o bloques.</span>
+            <li class="editor-feat-row">
+              <span class="feat-icon-box feat-rose">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </span>
+              <span><strong>Inspector Preciso:</strong> Selección exacta y bloque padre.</span>
             </li>
-            <li>
-              <span class="feat-icon">⬛</span>
-              <span><strong>Auto-Censura:</strong> Oculta datos de perfil y cuentas.</span>
+            <li class="editor-feat-row">
+              <span class="feat-icon-box feat-purple">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </span>
+              <span><strong>Censura Blindada:</strong> Emails, montos, tarjetas y avatares.</span>
             </li>
-            <li>
-              <span class="feat-icon">📥</span>
-              <span><strong>Exportación Fiel:</strong> Descarga a PDF, Word o PNG editado.</span>
+            <li class="editor-feat-row">
+              <span class="feat-icon-box feat-emerald">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </span>
+              <span><strong>Exportación Pro:</strong> PDF, Word inteligente, PNG 2x y HTML offline.</span>
             </li>
           </ul>
+
+          <label class="setting-item clone-clean-toggle">
+            <span class="setting-label">Pre-limpiar anuncios y cookies al clonar</span>
+            <span class="ui-switch">
+              <input type="checkbox" id="cleanCloneDom">
+              <span class="ui-switch-track"></span>
+            </span>
+          </label>
 
           <button id="btnLaunchEditor" class="launch-editor-btn" type="button">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

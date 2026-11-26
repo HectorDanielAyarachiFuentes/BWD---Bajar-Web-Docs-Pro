@@ -37,7 +37,7 @@
 
         <!-- Segmented Mode Switcher (Estilo Figma/Apple) -->
         <div class="editor-mode-switcher" role="radiogroup" aria-label="Modo de interacción">
-          <button id="toolEdit" class="mode-tab is-active" type="button" title="Modo Editar Texto: Haz clic en cualquier titular, autor o párrafo para modificarlo en tiempo real">
+          <button id="toolEdit" class="mode-tab is-active" type="button" title="Modo Editar: Haz clic en cualquier texto para formatearlo o en una imagen para reemplazarla">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -45,7 +45,7 @@
             <span>Editar</span>
           </button>
 
-          <button id="toolDelete" class="mode-tab" type="button" title="Modo Eliminar: Haz clic sobre cualquier bloque, barra o banner para borrarlo de la página">
+          <button id="toolDelete" class="mode-tab" type="button" title="Modo Eliminar: Inspecciona un bloque exacto (↑/Rueda para subir al padre) y haz clic para borrarlo">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -53,47 +53,75 @@
             <span>Eliminar</span>
           </button>
 
-          <button id="toolRedact" class="mode-tab" type="button" title="Modo Censurar: Haz clic sobre nombres, números o datos privados para tacharlos">
+          <button id="toolRedact" class="mode-tab" type="button" title="Modo Censurar: Oculta textos, montos o fotos con Barra Sólida, Blur o Asteriscos">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
             </svg>
             <span>Censurar</span>
           </button>
+
+          <button id="toolCursor" class="mode-tab" type="button" title="Modo Cursor: Desplázate y selecciona texto libremente sin modificar elementos">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"></path>
+              <path d="M13 13l6 6"></path>
+            </svg>
+            <span>Cursor</span>
+          </button>
         </div>
 
-        <!-- Grupo Pro Smart Actions -->
+        <!-- Grupo Pro Smart Actions (Iconos SVG diferenciados en resoluciones compactas) -->
         <div class="editor-smart-group">
-          <button id="btnAutoClean" class="smart-btn smart-btn-clean" type="button" title="Auto-Limpiar: Quita cabeceras duplicadas, anuncios y cuadros molestos">
-            <span class="smart-sparkle sparkle-cyan">✦</span>
+          <button id="btnAutoClean" class="smart-btn smart-btn-clean" type="button" title="Auto-Limpiar: Quita anuncios, banners de cookies, bloqueos de scroll y cabeceras duplicadas">
+            <svg class="smart-svg sparkle-cyan" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"></path>
+            </svg>
             <span class="smart-btn-text">Auto-Limpiar</span>
           </button>
 
-          <button id="btnReorganize" class="smart-btn smart-btn-reorganize" type="button" title="Reacomodar Inteligente (Mozilla Readability): Extrae título, fotos y cuerpo sin cabeceras ni publicidad">
-            <span class="smart-sparkle sparkle-emerald">✦</span>
+          <button id="btnReorganize" class="smart-btn smart-btn-reorganize" type="button" title="Reacomodar Inteligente (Mozilla Readability): Extrae artículo limpio preservando fotos, epígrafes y censuras">
+            <svg class="smart-svg sparkle-emerald" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <line x1="7" y1="8" x2="17" y2="8"></line>
+              <line x1="7" y1="12" x2="17" y2="12"></line>
+              <line x1="7" y1="16" x2="13" y2="16"></line>
+            </svg>
             <span class="smart-btn-text">Reacomodar</span>
           </button>
 
-          <button id="btnAutoRedact" class="smart-btn smart-btn-redact" type="button" title="Auto-Censura: Detecta y censura automáticamente perfiles, emails y balances">
-            <span class="smart-sparkle sparkle-violet">✦</span>
+          <button id="btnAutoRedact" class="smart-btn smart-btn-redact" type="button" title="Auto-Censura Inteligente: Detecta y censura emails, teléfonos, tarjetas, montos, perfiles y avatares">
+            <svg class="smart-svg sparkle-violet" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <path d="M9 12l2 2 4-4"></path>
+            </svg>
             <span class="smart-btn-text">Auto-Censura</span>
           </button>
         </div>
 
-        <!-- Grupo de Historial Compacto -->
+        <!-- Grupo de Historial Real (Deshacer + Rehacer + Restablecer separado) -->
         <div class="editor-history-group">
-          <button id="btnUndo" class="history-btn" type="button" title="Deshacer último cambio (Ctrl + Z)" aria-label="Deshacer">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="1 4 1 10 7 10"></polyline>
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          <button id="btnUndo" class="history-btn" type="button" disabled title="Deshacer último cambio (Ctrl + Z)" aria-label="Deshacer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 14 4 9 9 4"></polyline>
+              <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
             </svg>
           </button>
 
-          <button id="btnReset" class="history-btn" type="button" title="Restablecer al diseño original sin cambios" aria-label="Restablecer">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 4v6h-6"></path>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          <button id="btnRedo" class="history-btn" type="button" disabled title="Rehacer cambio (Ctrl + Y / Ctrl + Shift + Z)" aria-label="Rehacer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 14 20 9 15 4"></polyline>
+              <path d="M4 20v-7a4 4 0 0 1 4-4h12"></path>
             </svg>
+          </button>
+
+          <span class="history-divider" aria-hidden="true"></span>
+
+          <button id="btnReset" class="history-btn history-btn-reset" type="button" disabled title="Restablecer todo al diseño original sin cambios" aria-label="Restablecer clon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+            <span class="reset-btn-label">Original</span>
           </button>
         </div>
 
@@ -117,8 +145,31 @@
           <!-- Menú flotante minimalista Pro -->
           <div class="export-menu-dropdown" id="exportMenuDropdown">
             <div class="export-menu-header">
-              <span class="export-menu-label">FORMATO DE DESCARGA</span>
+              <span class="export-menu-label">FORMATO Y MOTOR PRO</span>
               <span class="export-pro-pill">PRO HD</span>
+            </div>
+
+            <!-- Ajustes rápidos de motor y paginación -->
+            <div class="export-config-strip">
+              <label class="export-config-row" title="Usa el compositor nativo real de Firefox cuando el zoom está al 100% para máxima fidelidad CSS">
+                <span>Motor Nativo Firefox</span>
+                <input type="checkbox" id="optNativeCapture" checked>
+              </label>
+              <div class="export-config-row">
+                <span>Paginación PDF</span>
+                <div class="mini-seg-group" id="pdfPageModeGroup">
+                  <button type="button" class="mini-seg-btn is-active" data-pdf-mode="continuous">1 Página</button>
+                  <button type="button" class="mini-seg-btn" data-pdf-mode="a4">A4</button>
+                </div>
+              </div>
+              <div class="export-config-row">
+                <span>Modo Word</span>
+                <div class="mini-seg-group" id="docxExportModeGroup">
+                  <button type="button" class="mini-seg-btn is-active" data-docx-mode="hybrid">Híbrido</button>
+                  <button type="button" class="mini-seg-btn" data-docx-mode="editable">Editable</button>
+                  <button type="button" class="mini-seg-btn" data-docx-mode="visual">Visual</button>
+                </div>
+              </div>
             </div>
 
             <div class="export-menu-list">
@@ -137,7 +188,7 @@
                     <span class="export-item-title">Documento PDF</span>
                     <span class="format-pill format-pdf">.PDF</span>
                   </div>
-                  <span class="export-item-desc">Impresión vectorial de alta fidelidad</span>
+                  <span class="export-item-desc">Capa de texto seleccionable multi-línea</span>
                 </div>
               </button>
 
@@ -154,7 +205,7 @@
                     <span class="export-item-title">Microsoft Word</span>
                     <span class="format-pill format-docx">.DOCX</span>
                   </div>
-                  <span class="export-item-desc">Texto editable con estilos intactos</span>
+                  <span class="export-item-desc">Corte inteligente sin partir renglones</span>
                 </div>
               </button>
 
@@ -172,7 +223,7 @@
                     <span class="export-item-title">Captura PNG HD</span>
                     <span class="format-pill format-png">.PNG</span>
                   </div>
-                  <span class="export-item-desc">Imagen completa 2x ultra nítida</span>
+                  <span class="export-item-desc">Imagen completa ultra nítida sin recortes</span>
                 </div>
               </button>
 
@@ -189,7 +240,7 @@
                     <span class="export-item-title">Código Web HTML</span>
                     <span class="format-pill format-html">.HTML</span>
                   </div>
-                  <span class="export-item-desc">Página offline con modificaciones</span>
+                  <span class="export-item-desc">100% offline con CSS incrustado y censura limpia</span>
                 </div>
               </button>
             </div>
@@ -200,20 +251,140 @@
     </div>
   </header>
 
-  <!-- BARRA DE INFORMACIÓN Y GUÍA RÁPIDA (HUD PRO) -->
+  <!-- BARRA DE INFORMACIÓN, OPCIONES CONTEXTUALES Y VISTA (HUD PRO) -->
   <div class="editor-guide-bar">
     <div class="guide-tip">
       <span class="pro-pulse-dot"></span>
       <span id="activeModeBadge" class="guide-mode-tag tag-edit">MODO EDITAR</span>
-      <span id="activeToolHint" class="guide-text">Haz clic directamente sobre cualquier texto o titular para modificarlo en tiempo real.</span>
+      <span id="activeToolHint" class="guide-text">Haz clic en un texto para editarlo o en una imagen para reemplazarla.</span>
+
+      <!-- Sub-opciones de Estilo de Censura -->
+      <div id="redactStyleGroup" class="hud-sub-controls" style="display: none;">
+        <span class="hud-sub-label">Estilo:</span>
+        <button type="button" class="hud-pill-btn is-active" data-redact-style="solid" title="Bloque negro/obsidian opaco irreversible">██ Barra</button>
+        <button type="button" class="hud-pill-btn" data-redact-style="blur" title="Desenfoque / pixelado de privacidad">Blur</button>
+        <button type="button" class="hud-pill-btn" data-redact-style="mask" title="Sustitución por caracteres ••••••">••••</button>
+      </div>
+
+      <!-- Sub-opciones de Modo Lectura (Readability) -->
+      <div id="readerControlsGroup" class="hud-sub-controls" style="display: none;">
+        <span class="hud-sub-label">Lectura:</span>
+        <button type="button" class="hud-pill-btn is-active" data-reader-theme="light">Claro</button>
+        <button type="button" class="hud-pill-btn" data-reader-theme="sepia">Sepia</button>
+        <button type="button" class="hud-pill-btn" data-reader-theme="dark">Oscuro</button>
+        <button type="button" class="hud-pill-btn" id="btnReaderFontDown" title="Reducir tamaño de letra">A-</button>
+        <button type="button" class="hud-pill-btn" id="btnReaderFontUp" title="Aumentar tamaño de letra">A+</button>
+      </div>
     </div>
-    <div class="changes-counter skill-badge-shine" id="changesCounter">0 cambios realizados</div>
+
+    <div class="guide-right-controls">
+      <button type="button" id="btnToggleLiveSidebar" class="hud-pill-btn sidebar-toggle-pill is-active" title="Mostrar u ocultar el Previsualizador y Mapa de Borrados en tiempo real">
+        🗺️ Mapa en Vivo
+      </button>
+
+      <!-- Controles de Viewport y Zoom -->
+      <div class="workspace-view-controls" aria-label="Ancho de vista y zoom">
+        <button type="button" class="view-preset-btn is-active" data-viewport="100%" title="Ancho escritorio completo">Web</button>
+        <button type="button" class="view-preset-btn" data-viewport="794px" title="Vista previa hoja A4 (794px)">A4</button>
+        <button type="button" class="view-preset-btn" data-viewport="390px" title="Vista móvil (390px)">Móvil</button>
+        <span class="view-sep"></span>
+        <button type="button" id="btnZoomOut" class="zoom-step-btn" title="Alejar vista">−</button>
+        <button type="button" id="btnZoomReset" class="zoom-label-btn" title="Restablecer zoom al 100%">100%</button>
+        <button type="button" id="btnZoomIn" class="zoom-step-btn" title="Acercar vista">+</button>
+      </div>
+
+      <div class="changes-counter skill-badge-shine" id="changesCounter">0 cambios</div>
+    </div>
   </div>
 
-  <!-- CONTENEDOR DEL ESPACIO DE TRABAJO (CLON DE LA PÁGINA) -->
-  <main class="editor-workspace">
-    <div class="workspace-viewport-wrap">
-      <iframe id="cloneFrame" class="clone-iframe" sandbox="allow-same-origin allow-scripts" title="Clon de la página web"></iframe>
+  <!-- CONTENEDOR DEL ESPACIO DE TRABAJO (MAPA EN VIVO IZQUIERDO + CLON DE LA PÁGINA) -->
+  <main class="editor-workspace" id="editorWorkspace">
+    <!-- PANEL IZQUIERDO: PREVISUALIZADOR EN TIEMPO REAL Y BITÁCORA DE CAMBIOS/BORRADOS -->
+    <aside id="livePreviewSidebar" class="live-preview-sidebar" aria-label="Previsualizador en tiempo real">
+      <div class="preview-sidebar-header">
+        <div class="preview-sidebar-title-row">
+          <span class="preview-live-dot"></span>
+          <span class="preview-sidebar-title">VISTA EN VIVO</span>
+          <span id="minimapHeightBadge" class="preview-dim-pill">0 px</span>
+        </div>
+        <div class="preview-header-actions">
+          <button type="button" id="btnToggleGhostBoxes" class="ghost-toggle-btn is-active" title="Resaltar en rojo en el mapa dónde estaban los bloques que borraste">👻 Borrados</button>
+          <button type="button" id="btnCollapseSidebar" class="sidebar-collapse-btn" title="Ocultar panel lateral">◀</button>
+        </div>
+      </div>
+
+      <!-- 1. Miniatura Limpia en Tiempo Real de toda la altura del diario + Lente de Navegación -->
+      <div class="minimap-viewport-container" id="minimapContainer">
+        <div class="minimap-canvas-stage" id="minimapStage">
+          <iframe id="livePreviewFrame" class="live-preview-iframe" sandbox="allow-same-origin" tabindex="-1" title="Previsualización limpia en tiempo real"></iframe>
+          <div id="minimapMarkersLayer" class="minimap-markers-layer"></div>
+          <div id="minimapLens" class="minimap-lens" title="Haz clic o arrastra para moverte rápido por toda la página"></div>
+        </div>
+      </div>
+
+      <!-- 2. Bitácora en Vivo: Qué borraste, editaste o censuraste (con botón para restaurar ítems sueltos) -->
+      <div class="changes-feed-section">
+        <div class="changes-feed-header">
+          <span class="changes-feed-title">QUÉ MODIFICASTE</span>
+          <span class="changes-feed-stats" id="changesFeedStats">Intacto</span>
+        </div>
+        <ul class="changes-feed-list skill-ul" id="liveChangesFeed">
+          <li class="changes-empty-state">Borra anuncios, edita titulares o censura datos: aquí verás cada cambio en tiempo real y podrás restaurar bloques sueltos con 1 clic.</li>
+        </ul>
+      </div>
+    </aside>
+
+    <div class="workspace-main-stage" id="workspaceMainStage">
+      <div class="workspace-viewport-wrap" id="workspaceViewportWrap">
+        <iframe id="cloneFrame" class="clone-iframe" sandbox="allow-same-origin allow-scripts" title="Clon de la página web"></iframe>
+      </div>
+    </div>
+
+    <!-- HUD FLOTANTE DEL INSPECTOR (ELIMINAR / CENSURAR) -->
+    <div id="inspectorHud" class="inspector-hud" style="display: none;">
+      <span id="inspectorTagLabel" class="inspector-tag-label">div.bloque · 320×120</span>
+      <button type="button" id="btnSelectParent" class="inspector-parent-btn" title="Seleccionar el contenedor padre (Flecha ↑)">↑ Padre</button>
+    </div>
+
+    <!-- BARRA FLOTANTE DE FORMATO DE TEXTO (MODO EDITAR) -->
+    <div id="textFormatBar" class="floating-format-bar" style="display: none;">
+      <button type="button" class="fmt-btn" data-fmt-cmd="bold" title="Negrita"><strong>B</strong></button>
+      <button type="button" class="fmt-btn" data-fmt-cmd="italic" title="Cursiva"><em>I</em></button>
+      <button type="button" class="fmt-btn" data-fmt-cmd="underline" title="Subrayado"><u>U</u></button>
+      <span class="fmt-sep"></span>
+      <button type="button" class="fmt-btn" data-fmt-size="-2" title="Reducir fuente">A−</button>
+      <button type="button" class="fmt-btn" data-fmt-size="2" title="Aumentar fuente">A+</button>
+      <span class="fmt-sep"></span>
+      <button type="button" class="fmt-color-dot" data-fmt-color="#0f172a" style="background:#0f172a;" title="Texto oscuro"></button>
+      <button type="button" class="fmt-color-dot" data-fmt-color="#f8fafc" style="background:#f8fafc;" title="Texto claro"></button>
+      <button type="button" class="fmt-color-dot" data-fmt-color="#2563eb" style="background:#2563eb;" title="Azul ejecutivo"></button>
+      <button type="button" class="fmt-color-dot" data-fmt-color="#dc2626" style="background:#dc2626;" title="Rojo alerta"></button>
+      <button type="button" class="fmt-color-dot" data-fmt-color="#059669" style="background:#059669;" title="Verde éxito"></button>
+      <span class="fmt-sep"></span>
+      <button type="button" id="btnFinishTextEdit" class="fmt-done-btn" title="Confirmar edición (Esc)">✓ Listo</button>
+    </div>
+
+    <!-- POPOVER DE EDICIÓN DE IMAGEN (MODO EDITAR) -->
+    <div id="imageEditPopover" class="image-edit-popover pro-beam-card" style="display: none;">
+      <div class="pro-beam-content image-popover-inner">
+        <div class="image-popover-header">
+          <span class="pro-badge glow-cyan">Imagen Seleccionada</span>
+          <button type="button" id="btnCloseImgPopover" class="popover-close-btn" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="image-popover-row">
+          <input type="url" id="imgSrcInput" class="imp-input image-url-input" placeholder="Pegar nueva URL de imagen..." />
+          <button type="button" id="btnApplyImgSrc" class="imp-btn imp-btn-primary image-apply-btn">Aplicar</button>
+        </div>
+        <div class="image-popover-actions">
+          <button type="button" id="btnUploadLocalImg" class="popover-action-btn">📁 Subir local</button>
+          <input type="file" id="localImgFileInput" accept="image/*" hidden />
+          <button type="button" class="popover-action-btn" data-img-width="auto">Auto</button>
+          <button type="button" class="popover-action-btn" data-img-width="50%">50%</button>
+          <button type="button" class="popover-action-btn" data-img-width="100%">100%</button>
+          <button type="button" id="btnRedactImg" class="popover-action-btn btn-pop-purple">Censurar</button>
+          <button type="button" id="btnDeleteImg" class="popover-action-btn btn-pop-rose">Borrar</button>
+        </div>
+      </div>
     </div>
   </main>
 
